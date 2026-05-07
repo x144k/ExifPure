@@ -115,13 +115,15 @@ private fun HistoryCard(
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.weight(1f)
                 )
+                val stripColor = when (entry.stripMode) {
+                    "All Metadata" -> MaterialTheme.colorScheme.primary
+                    "GPS Only" -> MaterialTheme.colorScheme.tertiary
+                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                }
                 Text(
                     text = entry.stripMode,
                     style = MaterialTheme.typography.labelSmall,
-                    color = if (entry.stripMode == "All Metadata")
-                        MaterialTheme.colorScheme.primary
-                    else
-                        MaterialTheme.colorScheme.tertiary
+                    color = stripColor
                 )
             }
             Spacer(Modifier.height(4.dp))

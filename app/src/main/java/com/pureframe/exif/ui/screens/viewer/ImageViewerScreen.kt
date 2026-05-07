@@ -120,11 +120,15 @@ fun ImageViewerScreen(
         }
     }
 
+    val displayMetrics = context.resources.displayMetrics
+    val screenWidth = displayMetrics.widthPixels.toFloat()
+    val screenHeight = displayMetrics.heightPixels.toFloat()
+
     val transformState = rememberTransformableState { zoomChange, panChange, _ ->
         val newScale = (scale * zoomChange).coerceIn(1f, 5f)
         val newOffset = if (newScale > 1f) {
-            val maxX = (newScale - 1) * 500f
-            val maxY = (newScale - 1) * 500f
+            val maxX = (newScale - 1) * screenWidth * 0.5f
+            val maxY = (newScale - 1) * screenHeight * 0.5f
             Offset(
                 x = (offset.x + panChange.x * newScale).coerceIn(-maxX, maxX),
                 y = (offset.y + panChange.y * newScale).coerceIn(-maxY, maxY)

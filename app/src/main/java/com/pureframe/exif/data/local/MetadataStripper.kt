@@ -31,8 +31,8 @@ class MetadataStripper(
         mode: StripMode = StripMode.ALL,
         outputDir: String = "EXIFPure/Clean"
     ): Result<ExportResult> = withContext(Dispatchers.IO) {
+        val temp = File.createTempFile("clean", ".tmp")
         try {
-            val temp = File.createTempFile("clean", ".tmp")
             resolver.openInputStream(photo.uri)?.use { input ->
                 FileOutputStream(temp).use { out ->
                     when (mode) {
@@ -80,10 +80,11 @@ class MetadataStripper(
                 resolver.update(uri, values, null, null)
             }
 
-            temp.delete()
             Result.success(ExportResult(uri, randomName))
         } catch (e: Exception) {
             Result.failure(e)
+        } finally {
+            temp.delete()
         }
     }
 }

@@ -145,7 +145,7 @@ fun SplashFlareScreen(
             taglineAlpha.animateTo(1f, tween(700))
         }
 
-        delay(4000)
+        delay(2500)
 
         launch {
             card1Alpha.animateTo(0f, tween(600))
