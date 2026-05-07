@@ -28,7 +28,7 @@ class PhotoRepository(
     suspend fun getExif(photo: Photo): ExifMetadata = exif.getMetadata(photo.uri)
 
     suspend fun exportClean(photo: Photo, mode: StripMode = StripMode.ALL): Result<Uri> {
-        val result = stripper.createCleanCopy(photo, mode)
+        val result = stripper.createCleanCopy(photo, mode, outputDir = prefs.outputDirName)
         val exportResult = result.getOrNull()
         if (exportResult != null) {
             logExport(photo, exportResult.filename, mode)
@@ -38,7 +38,7 @@ class PhotoRepository(
 
     suspend fun batchExport(photos: List<Photo>, mode: StripMode): List<Result<Uri>> {
         return photos.map { photo ->
-            val result = stripper.createCleanCopy(photo, mode)
+            val result = stripper.createCleanCopy(photo, mode, outputDir = prefs.outputDirName)
             val exportResult = result.getOrNull()
             if (exportResult != null) {
                 logExport(photo, exportResult.filename, mode)
