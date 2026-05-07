@@ -213,7 +213,7 @@ fun SettingsScreen(
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("About", style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(8.dp))
-                    Text("EXIF Pure v1.2.0", style = MaterialTheme.typography.bodyMedium)
+                    Text("EXIF Pure v1.3.0", style = MaterialTheme.typography.bodyMedium)
                     Text("Privacy-first local photo organizer", style = MaterialTheme.typography.bodySmall)
                     Spacer(Modifier.height(4.dp))
                     Text("No accounts. No ads. No tracking. All data stays on your device.", style = MaterialTheme.typography.bodySmall)
