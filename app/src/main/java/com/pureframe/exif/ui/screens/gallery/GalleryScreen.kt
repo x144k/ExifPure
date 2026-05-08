@@ -393,7 +393,18 @@ class GalleryViewModel(private val repository: PhotoRepository) : ViewModel() {
             val success = results.count { it.isSuccess }
             val failed = results.size - success
             val uris = results.mapNotNull { it.getOrNull() }
-            _batchResult.value = "Exported $success clean copies${if (failed > 0) ", $failed failed" else ""}"
+            val firstError = results.firstOrNull { it.isFailure }?.exceptionOrNull()?.message
+            val reason = when {
+                firstError?.contains("EOF") == true -> "File appears corrupted or incomplete"
+                firstError?.contains("Invalid JPEG") == true -> "Unsupported or damaged image format"
+                firstError?.contains("MediaStore") == true -> "Unable to save to device storage"
+                else -> "File may be corrupted or unsupported"
+            }
+            _batchResult.value = when {
+                success == 0 && failed > 0 -> "Export failed: $reason"
+                success > 0 && failed > 0 -> "Exported $success, $failed failed: $reason"
+                else -> "Exported $success clean copies"
+            }
             _batchProgress.value = false
             clearSelection()
             _shareUris.value = uris
