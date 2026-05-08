@@ -16,5 +16,7 @@ local.properties
 keystore.properties
 release.keystore
 .keystore_pass
+git-credentials
+.git-credentials
 .jdk/
 .vscode/
