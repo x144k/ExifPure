@@ -6,41 +6,10 @@ import java.io.InputStream
 import java.io.OutputStream
 
 /**
- * Lossless PNG metadata stripper.
+ * Strips ancillary metadata chunks from PNG without re-compression.
  *
- * PNG files are structured as a sequence of **chunks**, each with a rigid format:
- * ```
- * [4 bytes: data length (big-endian)] [4 bytes: chunk type] [N bytes: data] [4 bytes: CRC32]
- * ```
- *
- * The chunk type is a 4-character ASCII code packed into a 32-bit integer. The first
- * character's case indicates whether the chunk is **critical** (uppercase) or
- * **ancillary** (lowercase). Ancillary chunks can be safely discarded without affecting
- * image decodeability.
- *
- * ## Chunks we strip (all ancillary metadata)
- * | Type | Name | Content |
- * |------|------|---------|
- * | `eXIf` | Exif metadata | Camera info, GPS, exposure data |
- * | `tEXt` | Text metadata | Title, author, description |
- * | `zTXt` | Compressed text | Same as tEXt, zlib-compressed |
- * | `iTXt` | International text | UTF-8 text with language tag |
- * | `tIME` | Last-modified time | Timestamp |
- *
- * ## Chunks we **never** touch (critical)
- * | Type | Name | Why it must be preserved |
- * |------|------|--------------------------|
- * | `IHDR` | Image header | Dimensions, bit depth, color type |
- * | `PLTE` | Palette | Required for indexed-color images |
- * | `IDAT` | Image data | zlib-compressed pixel data |
- * | `IEND` | End marker | File terminator |
- * | `tRNS` | Transparency | Alpha for palette or grayscale |
- * | `cHRM`, `gAMA`, `sRGB`, `iCCP` | Color management | Affect rendering; not "metadata" in the privacy sense |
- *
- * ## Lossless guarantee
- * Because PNG uses DEFLATE compression for pixel data inside `IDAT` chunks, and we
- * only remove ancillary chunks while copying `IDAT` verbatim, the decoded pixels are
- * identical. No re-compression occurs.
+ * Removes `eXIf`, `tEXt`, `zTXt`, `iTXt`, and `tIME` chunks while preserving
+ * critical chunks (`IHDR`, `PLTE`, `IDAT`, `IEND`) and color management data.
  */
 object PngStripper {
 
@@ -59,18 +28,12 @@ object PngStripper {
     /** Last-modified timestamp chunk. */
     private val CHUNK_TIME = chunkType("tIME")
 
-    /**
-     * Packs a 4-character ASCII chunk name into a 32-bit big-endian integer.
-     *
-     * Example: `chunkType("eXIf")` → `0x65584966`.
-     */
+    /** Packs a 4-character ASCII chunk name into a 32-bit big-endian integer. */
     private fun chunkType(name: String): Int =
         (name[0].code shl 24) or (name[1].code shl 16) or (name[2].code shl 8) or name[3].code
 
     /**
-     * Strips metadata chunks from a PNG stream.
-     *
-     * @param input  Raw PNG bytes. Must begin with the 8-byte PNG signature.
+     * @param input Raw PNG bytes. Must begin with the 8-byte PNG signature.
      * @param output Stream to write the cleaned PNG.
      * @throws IllegalArgumentException if the input does not start with a valid PNG signature.
      */
@@ -78,8 +41,7 @@ object PngStripper {
         val reader = DataInputStream(input.buffered())
         val writer = DataOutputStream(output.buffered())
 
-        // ── Validate PNG signature ───────────────────────────────────────
-        // Signature: 89 50 4E 47 0D 0A 1A 0A (hex)
+        // Validate PNG signature
         val sig = ByteArray(8)
         reader.readFully(sig)
         require(
@@ -91,7 +53,7 @@ object PngStripper {
         ) { "Not a valid PNG file: signature mismatch" }
         writer.write(sig)
 
-        // ── Chunk-by-chunk processing ────────────────────────────────────
+        // Chunk-by-chunk processing
         while (true) {
             val length = reader.readInt()   // Big-endian unsigned 32-bit
             val type = reader.readInt()      // Big-endian chunk type code
@@ -115,11 +77,7 @@ object PngStripper {
         }
     }
 
-    /**
-     * Writes a complete chunk (length, type, data, CRC) to the output stream.
-     *
-     * All fields are big-endian per the PNG specification.
-     */
+    /** Writes a complete chunk (length, type, data, CRC) in big-endian. */
     private fun writeChunk(writer: DataOutputStream, type: Int, data: ByteArray, crc: Int) {
         writer.writeInt(data.size)
         writer.writeInt(type)

@@ -106,40 +106,19 @@ import kotlinx.coroutines.launch
 /**
  * ViewModel for the gallery screen.
  *
- * Manages four distinct UI surfaces:
+ * Manages five distinct UI surfaces:
  * 1. **Photo grid** — loading, sorting, filtering (search, favorites, EXIF presence, GPS presence).
  * 2. **Selection mode** — long-press to enter; tap to toggle selection; batch actions (delete, share clean).
  * 3. **EXIF cache** — on-demand background scanning of EXIF/GPS presence for filter chips.
  * 4. **Batch export** — asynchronous export of multiple photos with progress and result reporting.
  * 5. **Album view** — group photos by bucket/album; browse albums and drill into individual albums.
  *
- * ## State flow architecture
- * All mutable state is held in `MutableStateFlow` properties exposed as read-only `StateFlow`.
- * Compose collects these via `collectAsState()`. No external MVI library is used.
- *
- * ## Selection mode lifecycle
- * ```
- * Normal tap ──► navigate to detail
- * Long-press ──► enter selection mode, select pressed item
- * Tap in mode ──► toggle selection
- * Action bar back ──► clear selection, exit mode
- * ```
- *
- * ## Album view lifecycle
- * ```
- * Toggle view ──► switch between flat photo grid and album grid
- * Tap album ──► enter album detail (photo grid filtered by bucket)
- * Back in album ──► return to album grid
- * ```
- *
- * ## EXIF caching strategy
- * The [exifCache] map is populated lazily when the user enables the "With EXIF" or
- * "Has GPS" filter chips. It is **not** pre-populated on gallery load to avoid blocking
- * the UI for large libraries. Each photo is scanned once and the result is memoized.
+ * Mutable state is held in [MutableStateFlow] and exposed as read-only [StateFlow].
+ * The [exifCache] is populated lazily when EXIF/GPS filters are first enabled.
  */
 class GalleryViewModel(private val repository: PhotoRepository) : ViewModel() {
 
-    // ── Core photo list ──────────────────────────────────────────────────
+    // Core photo list
     /** All photos from MediaStore, unsorted and unfiltered. */
     private val _photos = MutableStateFlow<List<Photo>>(emptyList())
     val photos: StateFlow<List<Photo>> = _photos.asStateFlow()
@@ -152,7 +131,7 @@ class GalleryViewModel(private val repository: PhotoRepository) : ViewModel() {
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
-    // ── Album list ───────────────────────────────────────────────────────
+    // Album list
     /** All albums (buckets) from MediaStore. */
     private val _albums = MutableStateFlow<List<Album>>(emptyList())
     val albums: StateFlow<List<Album>> = _albums.asStateFlow()
@@ -161,7 +140,7 @@ class GalleryViewModel(private val repository: PhotoRepository) : ViewModel() {
     private val _currentAlbum = MutableStateFlow<Album?>(null)
     val currentAlbum: StateFlow<Album?> = _currentAlbum.asStateFlow()
 
-    // ── Selection mode ─────────────────────────────────────────────────
+    // Selection mode
     /** True when the user is in multi-select mode (triggered by long-press). */
     private val _isSelectionMode = MutableStateFlow(false)
     val isSelectionMode: StateFlow<Boolean> = _isSelectionMode.asStateFlow()
@@ -170,12 +149,12 @@ class GalleryViewModel(private val repository: PhotoRepository) : ViewModel() {
     private val _selectedIds = MutableStateFlow<Set<Long>>(emptySet())
     val selectedIds: StateFlow<Set<Long>> = _selectedIds.asStateFlow()
 
-    // ── Favorites ────────────────────────────────────────────────────────
+    // Favorites
     /** Set of photo IDs marked as favorite. Kept in sync with [EncryptedPreferenceStorage]. */
     private val _favoriteIds = MutableStateFlow<Set<Long>>(emptySet())
     val favoriteIds: StateFlow<Set<Long>> = _favoriteIds.asStateFlow()
 
-    // ── Batch export ─────────────────────────────────────────────────────
+    // Batch export
     /** True while a batch export operation is in progress. Blocks the action bar. */
     private val _batchProgress = MutableStateFlow(false)
     val batchProgress: StateFlow<Boolean> = _batchProgress.asStateFlow()
@@ -188,7 +167,7 @@ class GalleryViewModel(private val repository: PhotoRepository) : ViewModel() {
     private val _shareUris = MutableStateFlow<List<android.net.Uri>>(emptyList())
     val shareUris: StateFlow<List<android.net.Uri>> = _shareUris.asStateFlow()
 
-    // ── EXIF cache ───────────────────────────────────────────────────────
+    // EXIF cache
     /**
      * Map of photo ID → [ExifSummary], populated on first use of EXIF/GPS filters.
      * Null entries indicate the photo has not yet been scanned.
@@ -200,7 +179,7 @@ class GalleryViewModel(private val repository: PhotoRepository) : ViewModel() {
     private val _isScanningExif = MutableStateFlow(false)
     val isScanningExif: StateFlow<Boolean> = _isScanningExif.asStateFlow()
 
-    // ── Filter state (plain mutableState for Compose recomposition) ──────
+    // Filter state
     /** When true, only favorite photos are shown. */
     var showFavoritesOnly by mutableStateOf(false)
 
@@ -216,11 +195,11 @@ class GalleryViewModel(private val repository: PhotoRepository) : ViewModel() {
     /** Controls visibility of the delete confirmation dialog. */
     var showDeleteConfirm by mutableStateOf(false)
 
-    // ── Gallery view mode ──────────────────────────────────────────────
+    // Gallery view mode
     private val _galleryViewMode = MutableStateFlow(repository.prefs.galleryViewMode)
     val galleryViewMode: StateFlow<String> = _galleryViewMode.asStateFlow()
 
-    // ── Preference delegates ────────────────────────────────────────────
+    // Preference delegates
     val sortOrder: String get() = repository.prefs.sortOrder
     val gridSize: String get() = repository.prefs.gridSize
     val hapticEnabled: Boolean get() = repository.prefs.hapticEnabled

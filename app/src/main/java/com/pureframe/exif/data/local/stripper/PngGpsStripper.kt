@@ -7,29 +7,12 @@ import java.io.OutputStream
 import java.util.zip.CRC32
 
 /**
- * GPS-only stripper for PNG files.
+ * Strips only GPS coordinates from PNG EXIF while preserving other metadata.
  *
- * PNG stores EXIF metadata inside an ancillary `eXIf` chunk. This class locates
- * that chunk, parses the TIFF structure within it, and corrupts the GPS IFD so
- * that standard EXIF readers skip the coordinates while preserving all other metadata.
+ * Locates the `eXIf` chunk, zeros the GPS IFD entry count, and recalculates
+ * the chunk CRC32. All other chunks are copied verbatim.
  *
- * ## Strategy overview
- * 1. Walk PNG chunks until the `eXIf` chunk is found.
- * 2. Parse the TIFF header inside the chunk payload to determine byte order.
- * 3. Read IFD0 entries, locate tag `0x8825` (GPSInfo IFD Pointer).
- * 4. Zero the entry-count field of the GPS IFD, causing readers to skip it.
- * 5. Recalculate the CRC32 of the modified `eXIf` chunk (mandatory; PNG readers
- *    validate CRC on every chunk).
- * 6. Rewrite the modified `eXIf` chunk and copy all other chunks verbatim.
- *
- * ## Why recalculate CRC?
- * PNG requires a CRC32 over the chunk type code and chunk data. Since we mutated
- * the `eXIf` payload, the original CRC is invalid. We must recompute it or the
- * output PNG will be rejected by strict decoders.
- *
- * ## Caveat
- * Same as [JpegGpsStripper]: zeroing the entry count is a corruption strategy that
- * fools standard readers but may not defeat forensic tools that scan raw TIFF bytes.
+ * Note: forensic tools may still recover GPS data from raw TIFF bytes.
  */
 object PngGpsStripper {
 
@@ -41,9 +24,7 @@ object PngGpsStripper {
         (name[0].code shl 24) or (name[1].code shl 16) or (name[2].code shl 8) or name[3].code
 
     /**
-     * Strips GPS coordinates from a PNG while preserving all other EXIF metadata.
-     *
-     * @param input  Raw PNG bytes. Must begin with the 8-byte PNG signature.
+     * @param input Raw PNG bytes. Must begin with the 8-byte PNG signature.
      * @param output Stream to write the GPS-scrubbed PNG.
      * @throws IllegalArgumentException if the input is not a valid PNG.
      */
@@ -51,7 +32,7 @@ object PngGpsStripper {
         val reader = DataInputStream(input.buffered())
         val writer = DataOutputStream(output.buffered())
 
-        // ── Validate PNG signature ───────────────────────────────────────
+        // Validate PNG signature
         val sig = ByteArray(8)
         reader.readFully(sig)
         require(
@@ -63,7 +44,7 @@ object PngGpsStripper {
         ) { "Not a valid PNG file: signature mismatch" }
         writer.write(sig)
 
-        // ── Chunk-by-chunk processing ────────────────────────────────────
+        // Chunk-by-chunk processing
         while (true) {
             val length = reader.readInt()
             val type = reader.readInt()
@@ -94,17 +75,14 @@ object PngGpsStripper {
     }
 
     /**
-     * Corrupts the GPS IFD inside a TIFF payload by zeroing its entry count.
-     *
-     * This mirrors the strategy in [JpegGpsStripper.stripGpsFromExif], but operates
-     * on a standalone TIFF blob (the `eXIf` chunk payload) rather than an APP1 segment.
+     * Zeros the GPS IFD entry count inside a TIFF payload.
      *
      * @param data The raw TIFF/EXIF payload from the `eXIf` chunk (no PNG framing).
      */
     private fun stripGpsFromExif(data: ByteArray) {
         if (data.size < 8) return
 
-        // ── Determine byte order ─────────────────────────────────────────
+        // Determine byte order
         val littleEndian = when {
             data[0] == 'I'.code.toByte() && data[1] == 'I'.code.toByte() -> true
             data[0] == 'M'.code.toByte() && data[1] == 'M'.code.toByte() -> false
@@ -133,7 +111,7 @@ object PngGpsStripper {
             }
         }
 
-        // ── Locate IFD0 and scan for GPS pointer ─────────────────────────
+        // Locate IFD0 and scan for GPS pointer
         val ifd0Offset = readInt32(4)
         if (ifd0Offset < 0 || ifd0Offset >= data.size - 2) return
 

@@ -9,8 +9,6 @@ import java.io.ByteArrayOutputStream
 
 class JpegStripperTest {
 
-    // ── Helper builders ──────────────────────────────────────────────────────
-
     private fun marker(m: Int) = byteArrayOf(0xFF.toByte(), m.toByte())
 
     private fun segment(markerByte: Int, payload: ByteArray): ByteArray {
@@ -30,23 +28,21 @@ class JpegStripperTest {
         return out.toByteArray()
     }
 
-    // ── Tests ────────────────────────────────────────────────────────────────
-
     @Test(expected = IllegalArgumentException::class)
-    fun strip_throwsWhenMissingSoi() {
+    fun strip_missingSoi_throws() {
         val invalid = byteArrayOf(0x00, 0x00, 0xFF.toByte(), 0xD9.toByte())
         strip(invalid)
     }
 
     @Test
-    fun strip_passesThroughMinimalJpegWithNoMetadata() {
+    fun strip_minimalJpeg_noMetadata() {
         val original = buildMinimalJpeg()
         val cleaned = strip(original)
         assertArrayEquals("JPEG with no metadata should be unchanged", original, cleaned)
     }
 
     @Test
-    fun strip_removesApp1ExifSegment() {
+    fun strip_app1_removed() {
         val app1Payload = "Exif\u0000\u0000".toByteArray(Charsets.US_ASCII) + ByteArray(20) { 0x42 }
         val app1 = segment(0xE1, app1Payload)
 
@@ -58,7 +54,7 @@ class JpegStripperTest {
     }
 
     @Test
-    fun strip_removesApp13IptcSegment() {
+    fun strip_app13_removed() {
         val app13Payload = ByteArray(30) { 0xAB.toByte() }
         val app13 = segment(0xED, app13Payload)
 
@@ -70,7 +66,7 @@ class JpegStripperTest {
     }
 
     @Test
-    fun strip_removesComSegment() {
+    fun strip_com_removed() {
         val comPayload = "This is a comment".toByteArray(Charsets.US_ASCII)
         val com = segment(0xFE, comPayload)
 
@@ -82,7 +78,7 @@ class JpegStripperTest {
     }
 
     @Test
-    fun strip_preservesApp0JfiF() {
+    fun strip_app0_preserved() {
         val app0Payload = "JFIF\u0000\u0001\u0001\u0000\u0000\u0001\u0000\u0001\u0000\u0000".toByteArray(Charsets.US_ASCII)
         val app0 = segment(0xE0, app0Payload)
 
@@ -95,7 +91,7 @@ class JpegStripperTest {
     }
 
     @Test
-    fun strip_preservesEntropyWithEscapedFF() {
+    fun strip_escapedFF_preserved() {
         // Entropy data containing the literal byte 0xFF followed by 0x00 (escape)
         val entropy = byteArrayOf(0x01, 0x02, 0xFF.toByte(), 0x00, 0x03, 0x04)
         val original = buildMinimalJpeg(entropyData = entropy)
@@ -116,7 +112,7 @@ class JpegStripperTest {
     }
 
     @Test
-    fun strip_preservesDqtDhtSofSegments() {
+    fun strip_dqtDhtSof_preserved() {
         val dqtPayload = ByteArray(64) { it.toByte() }
         val dqt = segment(0xDB, dqtPayload)
 
@@ -132,7 +128,7 @@ class JpegStripperTest {
     }
 
     @Test
-    fun strip_multipleMetadataSegments_allRemoved() {
+    fun strip_multipleSegments_removed() {
         val app1 = segment(0xE1, ByteArray(10) { 0x11.toByte() })
         val app13 = segment(0xED, ByteArray(10) { 0x22.toByte() })
         val com = segment(0xFE, ByteArray(10) { 0x33.toByte() })
@@ -147,8 +143,6 @@ class JpegStripperTest {
         assertFalse("COM removed", containsMarker(cleaned, 0xFE))
         assertEquals("APP0 preserved", true, containsMarker(cleaned, 0xE0))
     }
-
-    // ── Internal helpers ─────────────────────────────────────────────────────
 
     /**
      * Builds a minimal synthetically valid JPEG:

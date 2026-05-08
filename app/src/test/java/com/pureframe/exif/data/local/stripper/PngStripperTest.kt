@@ -10,18 +10,8 @@ import java.io.ByteArrayOutputStream
 import java.util.zip.CRC32
 import java.util.zip.Deflater
 
-/**
- * Unit tests for [PngStripper].
- *
- * These tests build synthetically valid PNG byte arrays in memory and verify that:
- * - Metadata chunks (eXIf, tEXt, zTXt, iTXt, tIME) are removed.
- * - Critical chunks (IHDR, IDAT, IEND) are preserved.
- * - PNGs with no metadata pass through unchanged.
- * - Invalid input (missing signature) is rejected.
- */
+/** Unit tests for [PngStripper]. */
 class PngStripperTest {
-
-    // ── Helper builders ──────────────────────────────────────────────────────
 
     private fun chunkType(name: String): Int =
         (name[0].code shl 24) or (name[1].code shl 16) or (name[2].code shl 8) or name[3].code
@@ -126,23 +116,21 @@ class PngStripperTest {
         assertTrue("Must contain IEND chunk", containsChunk(data, "IEND"))
     }
 
-    // ── Tests ────────────────────────────────────────────────────────────────
-
     @Test(expected = IllegalArgumentException::class)
-    fun strip_throwsWhenMissingSignature() {
+    fun strip_missingSignature_throws() {
         val invalid = ByteArray(8) { 0x00 }
         strip(invalid)
     }
 
     @Test
-    fun strip_passesThroughMinimalPngWithNoMetadata() {
+    fun strip_minimalPng_noMetadata() {
         val original = buildMinimalPng()
         val cleaned = strip(original)
         assertArrayEquals("PNG with no metadata should be unchanged", original, cleaned)
     }
 
     @Test
-    fun strip_removesExifChunk() {
+    fun strip_exif_removed() {
         val exifData = "Exif\u0000\u0000".toByteArray(Charsets.US_ASCII) + ByteArray(20) { 0x42.toByte() }
         val exifChunk = writeChunk("eXIf", exifData)
 
@@ -154,7 +142,7 @@ class PngStripperTest {
     }
 
     @Test
-    fun strip_removesTextChunk() {
+    fun strip_text_removed() {
         val textData = "Title\u0000Test image".toByteArray(Charsets.US_ASCII)
         val textChunk = writeChunk("tEXt", textData)
 
@@ -166,7 +154,7 @@ class PngStripperTest {
     }
 
     @Test
-    fun strip_removesZtxtChunk() {
+    fun strip_ztxt_removed() {
         val ztxtData = "Author\u0000Test author".toByteArray(Charsets.US_ASCII)
         val ztxtChunk = writeChunk("zTXt", ztxtData)
 
@@ -178,7 +166,7 @@ class PngStripperTest {
     }
 
     @Test
-    fun strip_removesItxtChunk() {
+    fun strip_itxt_removed() {
         val itxtData = byteArrayOf(0x00) + "en\u0000\u0000Title\u0000Test".toByteArray(Charsets.UTF_8)
         val itxtChunk = writeChunk("iTXt", itxtData)
 
@@ -190,7 +178,7 @@ class PngStripperTest {
     }
 
     @Test
-    fun strip_removesTimeChunk() {
+    fun strip_time_removed() {
         val timeData = byteArrayOf(0x07, 0xE5.toByte(), 0x01, 0x01, 0x00, 0x00, 0x00)
         val timeChunk = writeChunk("tIME", timeData)
 
@@ -202,7 +190,7 @@ class PngStripperTest {
     }
 
     @Test
-    fun strip_preservesIdatChunk() {
+    fun strip_idat_preserved() {
         val exifChunk = writeChunk("eXIf", ByteArray(10) { 0x11.toByte() })
         val textChunk = writeChunk("tEXt", ByteArray(10) { 0x22.toByte() })
 
@@ -216,7 +204,7 @@ class PngStripperTest {
     }
 
     @Test
-    fun strip_multipleMetadataChunks_allRemoved() {
+    fun strip_multipleChunks_removed() {
         val exif = writeChunk("eXIf", ByteArray(10) { 0x11.toByte() })
         val text = writeChunk("tEXt", ByteArray(10) { 0x22.toByte() })
         val ztxt = writeChunk("zTXt", ByteArray(10) { 0x33.toByte() })
