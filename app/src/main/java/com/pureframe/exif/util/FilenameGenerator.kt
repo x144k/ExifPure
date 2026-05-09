@@ -7,9 +7,15 @@ import java.util.UUID
 
 object FilenameGenerator {
     fun generate(extension: String): String {
-        val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+        val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).apply {
+            timeZone = java.util.TimeZone.getTimeZone("UTC")
+        }.format(Date())
         val uuid = UUID.randomUUID().toString().take(8)
         val ext = extension.trimStart('.').lowercase()
-        return "EXIFPure_${timestamp}_${uuid}.$ext"
+        return if (ext.isEmpty()) {
+            "EXIFPure_${timestamp}_${uuid}"
+        } else {
+            "EXIFPure_${timestamp}_${uuid}.$ext"
+        }
     }
 }

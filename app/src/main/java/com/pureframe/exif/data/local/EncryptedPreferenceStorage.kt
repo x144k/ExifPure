@@ -55,7 +55,9 @@ class EncryptedPreferenceStorage(context: Context) {
         set(v) = prefs.edit().putBoolean(KEY_SILENT_SHARE, v).apply()
 
     fun getFavoriteIds(): Set<Long> {
-        return prefs.getStringSet(KEY_FAVORITES, emptySet())?.map { it.toLong() }?.toSet() ?: emptySet()
+        return prefs.getStringSet(KEY_FAVORITES, emptySet())
+            ?.mapNotNull { it.toLongOrNull() }
+            ?.toSet() ?: emptySet()
     }
 
     fun toggleFavorite(id: Long) {
@@ -78,7 +80,7 @@ class EncryptedPreferenceStorage(context: Context) {
         current.add(0, entry)
         if (current.size > 50) current.removeAt(current.lastIndex)
         val json = current.joinToString("\n") {
-            "${it.id}|${it.originalName}|${it.exportedName}|${it.stripMode}|${it.timestamp}|${it.mimeType}"
+            "${it.id}|${it.originalName.replace("|", "_")}|${it.exportedName.replace("|", "_")}|${it.stripMode}|${it.timestamp}|${it.mimeType}"
         }
         prefs.edit().putString(KEY_EXPORT_LOG, json).apply()
     }
