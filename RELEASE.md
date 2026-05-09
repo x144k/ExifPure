@@ -1,34 +1,23 @@
-# EXIF Pure v1.3.0
+# EXIF Pure v1.4.0
 
 ## What's New
 
-### Share Intent Processing
-Share photos directly from any app to EXIF Pure. When you tap **Share** in your camera roll, gallery, or messaging app, EXIF Pure appears as a destination. Shared images are automatically processed, metadata is stripped using your default strip mode, and a clean copy is saved to your configured output directory. Supports single images and batch sharing.
-
-### Photo Detail View
-A fully redesigned detail screen replaces the basic viewer:
-- **Full-screen image preview** with pinch-to-zoom support
-- **Complete EXIF metadata table** showing camera make/model, lens, exposure, ISO, focal length, GPS coordinates, and orientation
-- **Strip mode selector** - choose *All Metadata* or *GPS Only* before exporting
-- **One-tap export** - save a clean copy instantly
-- **Before / After comparison card** - see exactly what metadata was removed
-
-### Unit Test Coverage
-Added the project's first unit tests for core algorithmic logic:
-- `JpegStripperTest` - 9 test cases covering segment removal, passthrough, entropy preservation, and multi-segment handling
-- `FilenameGeneratorTest` - 4 test cases for timestamped filename generation
+### Silent Share Mode
+A new setting in **Export Behavior** lets you process single shared images instantly, without ever opening the app UI. When enabled, sharing one photo to EXIF Pure from any app automatically strips its metadata and launches the system share chooser with the clean copy ready to send. For multiple images or when the app lock is active, the full share UI still appears so you can review and confirm.
 
 ## Improvements
 
-- **Bug fix:** Fixed main-thread deletion ANR when removing photos from the gallery
-- **Bug fix:** Added Android 14 `READ_MEDIA_VISUAL_USER_SELECTED` permission support
-- **Bug fix:** `FallbackStripper` now guards against OOM on extremely large images and cleans up temp files on crash
-- **Build:** Bumped Compose Compiler plugin to 2.2.21 to fix CLI builds with AGP 9.2.1
+- **Security:** ShareActivity now blocks screenshots with `FLAG_SECURE`
+- **Security:** Lock screen re-engages automatically when the app resumes
+- **Reliability:** Share intents now handle `ClipData` from modern apps (Chrome, Files, Google Photos)
+- **Reliability:** Content URIs are validated and non-image MIME types are filtered before processing
+- **UX:** Settings version label now reads dynamically from `BuildConfig.VERSION_NAME`
+- **UX:** All user-facing strings in the share flow and lock screen are now localizable
 
 ## SHA-256 Checksums
 
 ```
-40212128fe2f43fcbf562229e6f49ce2410d04b2c300dbd58ea1a36ff9f04fc0  app-release.apk
+af8dd3c949c55e186a1f103c83588ddf0c9a9d71befea65c75b5f36ace4c0b8e  app-release.apk
 ```
 
 ## Installation
