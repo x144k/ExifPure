@@ -1,5 +1,9 @@
 package com.pureframe.exif.ui.screens.settings
 
+import android.os.Build
+import android.widget.Toast
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -36,6 +40,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
 import com.pureframe.exif.BuildConfig
 import com.pureframe.exif.ExifPureApplication
 import com.pureframe.exif.R
@@ -183,7 +189,14 @@ fun SettingsScreen(
                     )
                     Spacer(Modifier.height(8.dp))
                     Button(
-                        onClick = { prefs.outputDirName = outputDir },
+                        onClick = {
+                            prefs.outputDirName = outputDir
+                            Toast.makeText(
+                                context,
+                                context.getString(R.string.settings_save_location_confirmed),
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        },
                         modifier = Modifier.align(Alignment.End)
                     ) {
                         Text(stringResource(R.string.save))
@@ -266,24 +279,95 @@ private fun LockSettings() {
     val prefs = remember { (context.applicationContext as ExifPureApplication).container.prefs }
 
     var lockEnabled by remember { mutableStateOf(prefs.appLockEnabled) }
+    var showAuthError by remember { mutableStateOf<String?>(null) }
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text("Biometric Lock", style = MaterialTheme.typography.bodyMedium)
-            Text("Require fingerprint/face to open", style = MaterialTheme.typography.bodySmall)
+    val canAuthStrong = remember {
+        if (Build.VERSION.SDK_INT >= 29) {
+            val biometricManager = BiometricManager.from(context)
+            biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) ==
+                BiometricManager.BIOMETRIC_SUCCESS
+        } else false
+    }
+
+    fun requestAuthBeforeToggle(targetState: Boolean, onResult: (Boolean) -> Unit) {
+        val activity = context as? FragmentActivity ?: run {
+            onResult(false)
+            return
         }
-        Switch(
-            checked = lockEnabled,
-            onCheckedChange = { checked ->
-                prefs.appLockEnabled = checked
-                lockEnabled = checked
+        val executor = ContextCompat.getMainExecutor(context)
+        val prompt = BiometricPrompt(
+            activity,
+            executor,
+            object : BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                    onResult(true)
+                }
+                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                    onResult(false)
+                }
+                override fun onAuthenticationFailed() {
+                    onResult(false)
+                }
             }
         )
+        prompt.authenticate(
+            BiometricPrompt.PromptInfo.Builder()
+                .setTitle(context.getString(R.string.lock_title))
+                .setSubtitle(context.getString(R.string.lock_verify_to_change))
+                .setNegativeButtonText(context.getString(R.string.lock_cancel))
+                .build()
+        )
+    }
+
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(stringResource(R.string.settings_biometric_lock), style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.settings_biometric_lock_desc), style = MaterialTheme.typography.bodySmall)
+            }
+            Switch(
+                checked = lockEnabled,
+                enabled = canAuthStrong || lockEnabled,
+                onCheckedChange = { checked ->
+                    if (!canAuthStrong && !checked) {
+                        prefs.appLockEnabled = false
+                        lockEnabled = false
+                        showAuthError = null
+                    } else {
+                        requestAuthBeforeToggle(checked) { success ->
+                            if (success) {
+                                prefs.appLockEnabled = checked
+                                lockEnabled = checked
+                                showAuthError = null
+                            } else {
+                                showAuthError = context.getString(R.string.lock_auth_failed)
+                            }
+                        }
+                    }
+                }
+            )
+        }
+        if (!canAuthStrong && !lockEnabled) {
+            Text(
+                stringResource(R.string.lock_no_strong_biometric),
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+        }
+        showAuthError?.let {
+            Text(
+                it,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+        }
     }
 }
 
