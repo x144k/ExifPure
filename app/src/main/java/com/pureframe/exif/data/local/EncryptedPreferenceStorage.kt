@@ -50,6 +50,10 @@ class EncryptedPreferenceStorage(context: Context) {
         get() = prefs.getBoolean(KEY_HAPTIC, true)
         set(v) = prefs.edit().putBoolean(KEY_HAPTIC, v).apply()
 
+    var silentShareEnabled: Boolean
+        get() = prefs.getBoolean(KEY_SILENT_SHARE, false)
+        set(v) = prefs.edit().putBoolean(KEY_SILENT_SHARE, v).apply()
+
     fun getFavoriteIds(): Set<Long> {
         return prefs.getStringSet(KEY_FAVORITES, emptySet())?.map { it.toLong() }?.toSet() ?: emptySet()
     }
@@ -124,6 +128,7 @@ class EncryptedPreferenceStorage(context: Context) {
         const val KEY_GRID = "grid_size"
         const val KEY_QUALITY = "fallback_quality"
         const val KEY_HAPTIC = "haptic_enabled"
+        const val KEY_SILENT_SHARE = "silent_share"
         const val KEY_EXPORT_LOG = "export_log"
         const val KEY_APP_LOCK = "app_lock"
         const val KEY_APP_LOCK_PIN = "app_lock_pin"
