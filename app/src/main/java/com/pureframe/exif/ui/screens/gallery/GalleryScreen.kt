@@ -1,12 +1,14 @@
 package com.pureframe.exif.ui.screens.gallery
 
 import android.Manifest
+import android.app.PendingIntent
 import android.content.pm.PackageManager
 import android.content.Intent
 import android.os.Build
 import android.view.HapticFeedbackConstants
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.BackHandler
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -29,6 +31,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -101,6 +104,10 @@ import com.pureframe.exif.ui.components.ShimmerBox
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
@@ -195,6 +202,13 @@ class GalleryViewModel(private val repository: PhotoRepository) : ViewModel() {
     /** Controls visibility of the delete confirmation dialog. */
     var showDeleteConfirm by mutableStateOf(false)
 
+    /** Pending intent from MediaStore when user consent is required for deletion (API 29+). */
+    private val _deleteConsentIntent = MutableStateFlow<PendingIntent?>(null)
+    val deleteConsentIntent: StateFlow<PendingIntent?> = _deleteConsentIntent.asStateFlow()
+
+    /** Photos queued for deletion while waiting for user consent. */
+    private var pendingDeletePhotos: List<Photo> = emptyList()
+
     // Gallery view mode
     private val _galleryViewMode = MutableStateFlow(repository.prefs.galleryViewMode)
     val galleryViewMode: StateFlow<String> = _galleryViewMode.asStateFlow()
@@ -203,10 +217,13 @@ class GalleryViewModel(private val repository: PhotoRepository) : ViewModel() {
     val sortOrder: String get() = repository.prefs.sortOrder
     val gridSize: String get() = repository.prefs.gridSize
     val hapticEnabled: Boolean get() = repository.prefs.hapticEnabled
+    val defaultStripMode: String get() = repository.prefs.defaultStripMode
 
     init {
         refresh()
-        _favoriteIds.value = repository.getFavoriteIds()
+        viewModelScope.launch(Dispatchers.IO) {
+            _favoriteIds.value = repository.getFavoriteIds()
+        }
     }
 
     /**
@@ -216,8 +233,11 @@ class GalleryViewModel(private val repository: PhotoRepository) : ViewModel() {
      * The existing [exifCache] is **not** invalidated; new photos will be scanned
      * on-demand when filters are next enabled.
      */
+    private var refreshJob: Job? = null
+
     fun refresh() {
-        viewModelScope.launch {
+        refreshJob?.cancel()
+        refreshJob = viewModelScope.launch {
             _isLoading.value = true
             _error.value = null
             try {
@@ -225,6 +245,8 @@ class GalleryViewModel(private val repository: PhotoRepository) : ViewModel() {
                     _photos.value = list
                     _albums.value = buildAlbums(list)
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _error.value = e.message
             } finally {
@@ -318,26 +340,34 @@ class GalleryViewModel(private val repository: PhotoRepository) : ViewModel() {
      * Large libraries (10k+ photos) may take several seconds; the UI shows a progress
      * indicator via [_isScanningExif].
      */
+    private var exifCacheJob: Job? = null
+
     private fun ensureExifCache() {
-        if (_exifCache.value.isNotEmpty()) return
-        viewModelScope.launch {
+        if (_exifCache.value.isNotEmpty() || exifCacheJob?.isActive == true) return
+        exifCacheJob?.cancel()
+        exifCacheJob = viewModelScope.launch(Dispatchers.IO) {
             _isScanningExif.value = true
             val cache = mutableMapOf<Long, ExifSummary>()
-            _photos.value.forEach { photo ->
-                try {
-                    val meta = repository.getExif(photo)
-                    cache[photo.id] = ExifSummary(
-                        photoId = photo.id,
-                        hasExif = meta.hasExif,
-                        hasGps = meta.gpsLatitude != null,
-                        cameraModel = meta.model
-                    )
-                } catch (_: Exception) {
-                    cache[photo.id] = ExifSummary(photo.id, false, false, null)
+            try {
+                _photos.value.forEach { photo ->
+                    if (!isActive) return@launch
+                    try {
+                        val meta = repository.getExif(photo)
+                        cache[photo.id] = ExifSummary(
+                            photoId = photo.id,
+                            hasExif = meta.hasExif,
+                            hasGps = meta.gpsLatitude != null,
+                            cameraModel = meta.model
+                        )
+                    } catch (e: Exception) {
+                        if (e is CancellationException) throw e
+                        cache[photo.id] = ExifSummary(photo.id, false, false, null)
+                    }
                 }
+                _exifCache.value = cache
+            } finally {
+                _isScanningExif.value = false
             }
-            _exifCache.value = cache
-            _isScanningExif.value = false
         }
     }
 
@@ -365,16 +395,65 @@ class GalleryViewModel(private val repository: PhotoRepository) : ViewModel() {
      * Permanently deletes all selected photos via MediaStore.
      *
      * Shows a confirmation dialog before invocation ([showDeleteConfirm]).
-     * On Android 10+ (API 29+), this may trigger a system confirmation dialog
-     * for scoped-storage deletion.
+     * On API 30+ this uses MediaStore.createDeleteRequest() which shows a
+     * system confirmation dialog. On API 29 it handles RecoverableSecurityException.
      */
     fun deleteSelected() {
         viewModelScope.launch {
             val photos = _photos.value.filter { it.id in _selectedIds.value }
-            val count = repository.deletePhotos(photos)
-            _batchResult.value = "Deleted $count photos"
-            clearSelection()
-            refresh()
+            pendingDeletePhotos = photos
+            when (val result = repository.deletePhotos(photos)) {
+                is com.pureframe.exif.data.local.DeleteResult.Success -> {
+                    _batchResult.value = "Deleted ${result.count} photos"
+                    clearSelection()
+                    refresh()
+                }
+                is com.pureframe.exif.data.local.DeleteResult.NeedsConsent -> {
+                    _deleteConsentIntent.value = result.pendingIntent
+                }
+            }
+        }
+    }
+
+    fun consumeDeleteConsentIntent() {
+        _deleteConsentIntent.value = null
+    }
+
+    /**
+     * Called after the system consent dialog is dismissed.
+     * On API 30+ the system handles deletion itself; we just refresh.
+     * On API 29 we retry the delete now that permission was granted.
+     */
+    fun retryDeleteAfterConsent(resultCode: Int = android.app.Activity.RESULT_OK) {
+        viewModelScope.launch {
+            val photos = pendingDeletePhotos
+            pendingDeletePhotos = emptyList()
+            if (photos.isEmpty()) return@launch
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                // API 30+: createDeleteRequest() already deleted the files via the
+                // system dialog. Show feedback based on whether the user confirmed.
+                if (resultCode == android.app.Activity.RESULT_OK) {
+                    _batchResult.value = "Photos deleted"
+                } else {
+                    _batchResult.value = "Deletion cancelled"
+                }
+                clearSelection()
+                refresh()
+            } else {
+                // API 29: the consent intent only granted permission; we must retry.
+                when (val result = repository.deletePhotos(photos)) {
+                    is com.pureframe.exif.data.local.DeleteResult.Success -> {
+                        _batchResult.value = "Deleted ${result.count} photos"
+                        clearSelection()
+                        refresh()
+                    }
+                    else -> {
+                        _batchResult.value = "Could not delete photos"
+                        clearSelection()
+                    }
+                }
+            }
         }
     }
 
@@ -395,9 +474,10 @@ class GalleryViewModel(private val repository: PhotoRepository) : ViewModel() {
             val uris = results.mapNotNull { it.getOrNull() }
             val firstError = results.firstOrNull { it.isFailure }?.exceptionOrNull()?.message
             val reason = when {
-                firstError?.contains("EOF") == true -> "File appears corrupted or incomplete"
-                firstError?.contains("Invalid JPEG") == true -> "Unsupported or damaged image format"
-                firstError?.contains("MediaStore") == true -> "Unable to save to device storage"
+                firstError.isNullOrEmpty() -> "File may be corrupted or unsupported"
+                firstError.contains("EOF", ignoreCase = true) -> "File appears corrupted or incomplete"
+                firstError.contains("Invalid JPEG", ignoreCase = true) -> "Unsupported or damaged image format"
+                firstError.contains("MediaStore", ignoreCase = true) -> "Unable to save to device storage"
                 else -> "File may be corrupted or unsupported"
             }
             _batchResult.value = when {
@@ -450,6 +530,7 @@ fun GalleryScreen(
     val isScanningExif by viewModel.isScanningExif.collectAsState()
     val currentAlbum by viewModel.currentAlbum.collectAsState()
     val galleryViewMode by viewModel.galleryViewMode.collectAsState()
+    val deleteConsentIntent by viewModel.deleteConsentIntent.collectAsState()
 
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -470,6 +551,12 @@ fun GalleryScreen(
         if (grants.values.any { it }) viewModel.refresh()
     }
 
+    val intentSenderLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        viewModel.retryDeleteAfterConsent(result.resultCode)
+    }
+
     val requiredPerms = remember {
         when {
             Build.VERSION.SDK_INT >= 34 -> arrayOf(
@@ -477,12 +564,20 @@ fun GalleryScreen(
                 Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED
             )
             Build.VERSION.SDK_INT >= 33 -> arrayOf(Manifest.permission.READ_MEDIA_IMAGES)
-            else -> arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+            else -> arrayOf(
+                Manifest.permission.READ_EXTERNAL_STORAGE,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE
+            )
         }
     }
 
-    val hasPermission = requiredPerms.all {
-        ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
+    val hasPermission = if (Build.VERSION.SDK_INT >= 34) {
+        ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED ||
+            ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED) == PackageManager.PERMISSION_GRANTED
+    } else {
+        requiredPerms.all {
+            ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
+        }
     }
 
     LaunchedEffect(hasPermission) {
@@ -513,6 +608,15 @@ fun GalleryScreen(
             }
             context.startActivity(Intent.createChooser(intent, "Share clean copies"))
             viewModel.consumeShareUris()
+        }
+    }
+
+    LaunchedEffect(deleteConsentIntent) {
+        deleteConsentIntent?.let { pending ->
+            intentSenderLauncher.launch(
+                IntentSenderRequest.Builder(pending.intentSender).build()
+            )
+            viewModel.consumeDeleteConsentIntent()
         }
     }
 
@@ -587,7 +691,14 @@ fun GalleryScreen(
                             Icon(Icons.Filled.Delete, contentDescription = "Delete")
                         }
                         IconButton(
-                            onClick = { viewModel.batchExportAndShare(StripMode.ALL) },
+                            onClick = {
+                                val mode = if (viewModel.defaultStripMode == EncryptedPreferenceStorage.STRIP_GPS) {
+                                    StripMode.GPS_ONLY
+                                } else {
+                                    StripMode.ALL
+                                }
+                                viewModel.batchExportAndShare(mode)
+                            },
                             enabled = !batchProgress
                         ) {
                             Icon(Icons.Filled.Share, contentDescription = "Share Clean")
@@ -829,16 +940,14 @@ fun GalleryScreen(
                             val isFavorite = favoriteIds.contains(photo.id)
                             val hasGps = exifCache[photo.id]?.hasGps == true
                             Box {
-                                AsyncImage(
-                                    model = coil.request.ImageRequest.Builder(context)
-                                        .data(photo.uri)
-                                        .crossfade(true)
-                                        .build(),
-                                    contentDescription = photo.displayName,
+                                Box(
                                     modifier = Modifier
                                         .padding(4.dp)
                                         .aspectRatio(1f)
                                         .clip(RoundedCornerShape(8.dp))
+                                        .background(
+                                            if (isSelected) Color.Blue.copy(alpha = 0.3f) else Color.Transparent
+                                        )
                                         .combinedClickable(
                                             onClick = {
                                                 if (isSelectionMode) {
@@ -858,13 +967,17 @@ fun GalleryScreen(
                                                 }
                                             }
                                         )
-                                        .then(
-                                            if (isSelected) Modifier.background(
-                                                Color.Blue.copy(alpha = 0.3f)
-                                            ) else Modifier
-                                        ),
-                                    contentScale = ContentScale.Crop
-                                )
+                                ) {
+                                    AsyncImage(
+                                        model = coil.request.ImageRequest.Builder(context)
+                                            .data(photo.uri)
+                                            .crossfade(true)
+                                            .build(),
+                                        contentDescription = photo.displayName,
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                }
                                 if (!isSelectionMode) {
                                     if (hasGps) {
                                         Box(
@@ -892,7 +1005,6 @@ fun GalleryScreen(
                                         },
                                         modifier = Modifier
                                             .align(Alignment.TopEnd)
-                                            .size(32.dp)
                                             .padding(4.dp)
                                     ) {
                                         Icon(
@@ -914,7 +1026,7 @@ fun GalleryScreen(
                                     ) {
                                         Icon(
                                             Icons.Filled.Check,
-                                            contentDescription = null,
+                                            contentDescription = "Selected",
                                             tint = Color.White,
                                             modifier = Modifier.size(16.dp)
                                         )
@@ -927,7 +1039,9 @@ fun GalleryScreen(
             }
             if (batchProgress) {
                 Box(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .pointerInput(Unit) { },
                     contentAlignment = Alignment.Center
                 ) {
                     CircularProgressIndicator()
