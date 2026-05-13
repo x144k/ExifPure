@@ -22,6 +22,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,8 +30,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.pureframe.exif.ExifPureApplication
+import com.pureframe.exif.R
 import com.pureframe.exif.data.model.ExportLogEntry
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -43,17 +46,24 @@ fun ExportHistoryScreen(
 ) {
     val context = LocalContext.current
     val repository = remember { (context.applicationContext as ExifPureApplication).container.repository }
-    var logs by remember { mutableStateOf(repository.getExportLogs()) }
+    var logs by remember { mutableStateOf(emptyList<ExportLogEntry>()) }
+
+    LaunchedEffect(Unit) {
+        logs = repository.getExportLogs()
+    }
 
     val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy • HH:mm", Locale.getDefault()) }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Export History") },
+                title = { Text(stringResource(R.string.history_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.back)
+                        )
                     }
                 },
                 actions = {
@@ -62,7 +72,10 @@ fun ExportHistoryScreen(
                             repository.clearExportLogs()
                             logs = emptyList()
                         }) {
-                            Icon(Icons.Filled.Delete, contentDescription = "Clear history")
+                            Icon(
+                                Icons.Filled.Delete,
+                                contentDescription = stringResource(R.string.history_clear)
+                            )
                         }
                     }
                 }
@@ -77,9 +90,9 @@ fun ExportHistoryScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                Text("No exports yet", style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.history_empty), style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(8.dp))
-                Text("Clean copies you export will appear here", style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.history_empty_desc), style = MaterialTheme.typography.bodySmall)
             }
         } else {
             LazyColumn(
@@ -128,7 +141,7 @@ private fun HistoryCard(
             }
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "From: ${entry.originalName}",
+                text = stringResource(R.string.history_from, entry.originalName),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

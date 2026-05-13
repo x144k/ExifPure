@@ -20,7 +20,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -36,6 +35,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -43,6 +43,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.pureframe.exif.ExifPureApplication
+import com.pureframe.exif.R
 import com.pureframe.exif.data.model.Photo
 import com.pureframe.exif.data.repository.PhotoRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -92,13 +93,6 @@ fun ImageViewerScreen(
     val animatedScale = remember { Animatable(1f) }
     val animatedOffset = remember { Animatable(Offset.Zero, Offset.VectorConverter) }
 
-    LaunchedEffect(scale) {
-        animatedScale.snapTo(scale)
-    }
-    LaunchedEffect(offset) {
-        animatedOffset.snapTo(offset)
-    }
-
     fun resetZoom() {
         coroutineScope.launch {
             animatedScale.animateTo(1f, tween(200))
@@ -120,7 +114,7 @@ fun ImageViewerScreen(
         }
     }
 
-    val displayMetrics = context.resources.displayMetrics
+    val displayMetrics = remember { context.resources.displayMetrics }
     val screenWidth = displayMetrics.widthPixels.toFloat()
     val screenHeight = displayMetrics.heightPixels.toFloat()
 
@@ -137,15 +131,22 @@ fun ImageViewerScreen(
 
         scale = newScale
         offset = newOffset
+        coroutineScope.launch {
+            animatedScale.snapTo(newScale)
+            animatedOffset.snapTo(newOffset)
+        }
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(photo?.displayName ?: "Viewer") },
+                title = { Text(photo?.displayName ?: stringResource(R.string.viewer_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.back)
+                        )
                     }
                 }
             )
