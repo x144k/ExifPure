@@ -1,23 +1,32 @@
-# EXIF Pure v1.4.0
+# EXIF Pure v1.4.1
 
 ## What's New
 
-### Silent Share Mode
-A new setting in **Export Behavior** lets you process single shared images instantly, without ever opening the app UI. When enabled, sharing one photo to EXIF Pure from any app automatically strips its metadata and launches the system share chooser with the clean copy ready to send. For multiple images or when the app lock is active, the full share UI still appears so you can review and confirm.
+### Secure Photo Deletion
+Deleting photos now works correctly on Android 10 and later. The app uses the modern MediaStore deletion API, which shows a system confirmation dialog so you stay in control. Previously, deletion silently failed with a "Deleted 0 photos" toast on devices running scoped storage.
+
+### Smarter Lock Screen
+The biometric lock no longer re-prompts you after system dialogs (like the deletion confirmation). A short grace period distinguishes genuine backgrounding from transient overlays, so you only authenticate when it actually matters.
+
+### Lock Hardening
+The biometric prompt has been hardened across the board:
+- Switches to BIOMETRIC_STRONG for stronger authentication
+- Adds dedicated handling for lockout, unenrolled biometrics, and missing hardware
+- Prevents saved-state crashes when the activity is finishing
+- Cancels stale prompts on timeout or screen disposal
+- Fixes lock bypass on API < 28 and during split-screen use
 
 ## Improvements
 
-- **Security:** ShareActivity now blocks screenshots with `FLAG_SECURE`
-- **Security:** Lock screen re-engages automatically when the app resumes
-- **Reliability:** Share intents now handle `ClipData` from modern apps (Chrome, Files, Google Photos)
-- **Reliability:** Content URIs are validated and non-image MIME types are filtered before processing
-- **UX:** Settings version label now reads dynamically from `BuildConfig.VERSION_NAME`
-- **UX:** All user-facing strings in the share flow and lock screen are now localizable
+- **Security:** Background detection moved to ON_PAUSE with state save/restore for reliability
+- **UX:** Lock screen text now uses theme colors for proper contrast on light dynamic themes
+- **UX:** All lock screen strings are now localizable
+- **Dependencies:** AndroidX, Compose, Coil, and ExifInterface updated to current stable versions
 
 ## SHA-256 Checksums
 
 ```
-af8dd3c949c55e186a1f103c83588ddf0c9a9d71befea65c75b5f36ace4c0b8e  app-release.apk
+bffe65271820ab27c2b6d7a530abddd6d6551f4bf7012f728735734d565ab8f5  app-release.apk
 ```
 
 ## Installation
