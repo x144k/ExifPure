@@ -2,6 +2,7 @@ package com.pureframe.exif.ui.screens.detail
 
 import android.content.Intent
 import android.text.format.Formatter
+import android.util.Log
 import android.view.HapticFeedbackConstants
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -41,10 +42,11 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -63,14 +65,19 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.pureframe.exif.ExifPureApplication
 import com.pureframe.exif.data.local.EncryptedPreferenceStorage
+import com.pureframe.exif.data.local.ImageTooLargeException
 import com.pureframe.exif.data.model.ExifMetadata
 import com.pureframe.exif.data.model.Photo
 import com.pureframe.exif.data.model.StripMode
 import com.pureframe.exif.data.repository.PhotoRepository
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.util.concurrent.atomic.AtomicBoolean
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -113,6 +120,8 @@ class DetailViewModel(
     /** True while [exportClean] is awaiting the stripper and MediaStore insertion. */
     private val _isExporting = MutableStateFlow(false)
     val isExporting: StateFlow<Boolean> = _isExporting.asStateFlow()
+
+    private val exportGuard = AtomicBoolean(false)
 
     /**
      * Human-readable result of the last export attempt.
@@ -163,9 +172,9 @@ class DetailViewModel(
      */
     private fun load() {
         viewModelScope.launch {
-            val p = repository.getPhoto(photoId)
+            val p = withContext(Dispatchers.IO) { repository.getPhoto(photoId) }
             _photo.value = p
-            p?.let { _exif.value = repository.getExif(it) }
+            p?.let { _exif.value = withContext(Dispatchers.IO) { repository.getExif(it) } }
         }
     }
 
@@ -189,26 +198,38 @@ class DetailViewModel(
      * @param mode [StripMode.ALL] removes all metadata; [StripMode.GPS_ONLY] removes only GPS.
      */
     fun exportClean(mode: StripMode) {
+        if (!exportGuard.compareAndSet(false, true)) return
         viewModelScope.launch {
             _isExporting.value = true
-            val p = _photo.value ?: return@launch
-            val result = repository.exportClean(p, mode)
-            _exportResult.value = result.fold(
-                onSuccess = { "Clean copy saved" },
-                onFailure = { it.message ?: "Export failed" }
-            )
-            _exportedUri.value = result.getOrNull()
-            result.getOrNull()?.let { uri ->
-                try {
-                    // Load EXIF of the exported file for comparison view
-                    _exportedExif.value = repository.getExif(
-                        Photo(0, uri, "", 0, 0, 0, 0, 0, "", null, null)
-                    )
-                } catch (_: Exception) {
-                    _exportedExif.value = null
+            try {
+                val p = _photo.value ?: return@launch
+                val result = repository.exportClean(p, mode)
+                _exportResult.value = result.fold(
+                    onSuccess = { "Clean copy saved" },
+                    onFailure = {
+                        val ex = result.exceptionOrNull()
+                        ex?.let { Log.w(TAG, "Export failed: ${it.javaClass.simpleName}") }
+                        if (ex is ImageTooLargeException) "Image exceeds 200 MB size limit" else "Export failed"
+                    }
+                )
+                _exportedUri.value = result.getOrNull()
+                result.getOrNull()?.let { uri ->
+                    try {
+                        _exportedExif.value = withContext(Dispatchers.IO) {
+                            repository.getExif(
+                                Photo(0, uri, "", 0, 0, 0, 0, 0, "", null, null)
+                            )
+                        }
+                    } catch (e: Exception) {
+                        if (e is CancellationException) throw e
+                        Log.w(TAG, "Failed to load exported EXIF: ${e.javaClass.simpleName}")
+                        _exportedExif.value = null
+                    }
                 }
+            } finally {
+                _isExporting.value = false
+                exportGuard.set(false)
             }
-            _isExporting.value = false
         }
     }
 
@@ -220,6 +241,10 @@ class DetailViewModel(
 
     /** Consumes the exported EXIF after the comparison card is dismissed. */
     fun consumeExportedExif() { _exportedExif.value = null }
+
+    companion object {
+        private const val TAG = "DetailViewModel"
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -235,6 +260,7 @@ fun DetailScreen(
         (context.applicationContext as ExifPureApplication).container.repository
     }
     val viewModel: DetailViewModel = viewModel(
+        key = photoId.toString(),
         factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -243,19 +269,22 @@ fun DetailScreen(
         }
     )
 
-    val photo by viewModel.photo.collectAsState()
-    val exif by viewModel.exif.collectAsState()
-    val isExporting by viewModel.isExporting.collectAsState()
-    val exportResult by viewModel.exportResult.collectAsState()
-    val exportedUri by viewModel.exportedUri.collectAsState()
-    val exportedExif by viewModel.exportedExif.collectAsState()
-    val isFavorite by viewModel.isFavorite.collectAsState()
+    val photo by viewModel.photo.collectAsStateWithLifecycle()
+    val exif by viewModel.exif.collectAsStateWithLifecycle()
+    val isExporting by viewModel.isExporting.collectAsStateWithLifecycle()
+    val exportResult by viewModel.exportResult.collectAsStateWithLifecycle()
+    val exportedUri by viewModel.exportedUri.collectAsStateWithLifecycle()
+    val exportedExif by viewModel.exportedExif.collectAsStateWithLifecycle()
+    val isFavorite by viewModel.isFavorite.collectAsStateWithLifecycle()
 
-    var selectedStripMode by remember { mutableStateOf(viewModel.defaultStripMode) }
+    var selectedStripMode by rememberSaveable { mutableStateOf(viewModel.defaultStripMode) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scrollState = rememberScrollState()
 
-    // Show snackbar when an export result is available
+    // Show snackbar when an export result is available.
+    // Show before consuming: if the effect is cancelled after the snackbar is
+    // shown but before consume runs, the user at least saw the message. The
+    // duplicate-on-rotation risk is acceptable compared to permanent loss.
     LaunchedEffect(exportResult) {
         exportResult?.let {
             snackbarHostState.showSnackbar(it)
@@ -263,7 +292,10 @@ fun DetailScreen(
         }
     }
 
-    // Launch system share sheet when a clean copy URI is available
+    // Launch system share sheet when a clean copy URI is available.
+    // Guard against background/finishing activity crashes on API 29+.
+    // Only consume the URI on success so rotation or a transient background
+    // state can retry instead of permanently losing the share opportunity.
     LaunchedEffect(exportedUri) {
         exportedUri?.let { uri ->
             val intent = Intent(Intent.ACTION_SEND).apply {
@@ -271,8 +303,13 @@ fun DetailScreen(
                 putExtra(Intent.EXTRA_STREAM, uri)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            context.startActivity(Intent.createChooser(intent, "Share clean copy"))
-            viewModel.consumeExportedUri()
+            val launched = try {
+                context.startActivity(Intent.createChooser(intent, "Share clean copy"))
+                true
+            } catch (e: Exception) {
+                false
+            }
+            if (launched) viewModel.consumeExportedUri()
         }
     }
 
@@ -535,7 +572,7 @@ private fun ExifRow(label: String, value: String?) {
         Text(
             text = value ?: "Not available",
             style = MaterialTheme.typography.bodyMedium,
-            color = if (value == null) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+            color = if (value == null) MaterialTheme.colorScheme.onSurfaceVariant
             else MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(0.6f)
         )
