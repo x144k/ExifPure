@@ -26,7 +26,6 @@ object JpegGpsStripper {
         val reader = BufferedInputStream(input)
         val writer = BufferedOutputStream(output)
 
-        // Validate SOI
         require(reader.read() == 0xFF && reader.read() == 0xD8) {
             "Invalid JPEG: expected SOI marker 0xFFD8"
         }
@@ -51,7 +50,6 @@ object JpegGpsStripper {
                             copySegment(reader, writer, marker)
                         }
                         marker == 0xE1 -> {
-                            // APP1 segment — may contain EXIF. Read payload, strip GPS, rewrite.
                             val segmentData = readSegmentData(reader)
                             if (segmentData.size > 6 &&
                                 segmentData.copyOfRange(0, 6).contentEquals("Exif\u0000\u0000".toByteArray())
@@ -68,10 +66,10 @@ object JpegGpsStripper {
                 }
                 State.ENTROPY -> {
                     val b = reader.read()
-                    if (b == -1) break
+                    if (b == -1) throw IllegalStateException("Unexpected EOF in JPEG entropy data")
                     if (b == 0xFF) {
                         val next = reader.read()
-                        if (next == -1) break
+                        if (next == -1) throw IllegalStateException("Unexpected EOF in JPEG entropy data")
                         when (next) {
                             0x00 -> { writer.write(0xFF); writer.write(0x00) }
                             in 0xD0..0xD7 -> { writer.write(0xFF); writer.write(next) }
@@ -84,26 +82,16 @@ object JpegGpsStripper {
         }
     }
 
-    /**
-     * Zeros the GPS IFD entry count inside a TIFF/EXIF payload.
-     *
-     * Tag `0x8825` (GPSInfo IFD Pointer) contains the offset to the GPS IFD.
-     * We locate that IFD and overwrite its first 2 bytes (entry count) with zeros.
-     *
-     * @param data The APP1 segment payload (including the 6-byte Exif header).
-     */
     private fun stripGpsFromExif(data: ByteArray) {
         val tiffStart = 6
         if (data.size < tiffStart + 8) return
 
-        // Determine byte order
         val littleEndian = when {
             data[tiffStart] == 'I'.code.toByte() && data[tiffStart + 1] == 'I'.code.toByte() -> true
             data[tiffStart] == 'M'.code.toByte() && data[tiffStart + 1] == 'M'.code.toByte() -> false
-            else -> return // Not a valid TIFF header
+            else -> return
         }
 
-        // Helper lambdas for multi-byte reads
         fun readInt16(offset: Int): Int {
             return if (littleEndian) {
                 (data[offset].toInt() and 0xFF) or ((data[offset + 1].toInt() and 0xFF) shl 8)
@@ -126,36 +114,38 @@ object JpegGpsStripper {
             }
         }
 
-        // Locate IFD0
         val ifd0Offset = readInt32(tiffStart + 4)
+        if (ifd0Offset < 0) return
         val ifd0Start = tiffStart + ifd0Offset
-        if (ifd0Start < 0 || ifd0Start >= data.size - 2) return
+        if (ifd0Start < 0 || ifd0Start > data.size - 2) return
 
         val entryCount = readInt16(ifd0Start)
         if (entryCount < 0 || entryCount > 1000) return
 
-        // Scan IFD0 entries for GPS pointer (tag 0x8825)
         for (i in 0 until entryCount) {
             val entryOffset = ifd0Start + 2 + (i * 12)
-            if (entryOffset + 12 > data.size) break
+            if (entryOffset < 0 || entryOffset > data.size - 12) break
 
             val tag = readInt16(entryOffset)
             if (tag == 0x8825) {
-                // Found GPSInfo IFD Pointer. The value/offset field is at entryOffset+8.
-                val gpsIfdOffset = readInt32(entryOffset + 8)
-                val gpsIfdStart = tiffStart + gpsIfdOffset
+                val type = readInt16(entryOffset + 2)
+                val count = readInt32(entryOffset + 4)
+                if (type != 4 || count != 1) break
 
-                // Sanity-check the GPS IFD location, then zero its entry count.
-                if (gpsIfdStart >= 0 && gpsIfdStart + 2 <= data.size) {
-                    data[gpsIfdStart] = 0
-                    data[gpsIfdStart + 1] = 0
-                }
+                val gpsIfdOffset = readInt32(entryOffset + 8)
+                if (gpsIfdOffset <= 0) break
+                val gpsIfdStart = tiffStart + gpsIfdOffset
+                if (gpsIfdStart < 0 || gpsIfdStart > data.size - 2) break
+                // Reject pointers that overlap IFD0 to avoid corrupting the whole EXIF block.
+                if (gpsIfdStart <= ifd0Start + 2) break
+
+                data[gpsIfdStart] = 0
+                data[gpsIfdStart + 1] = 0
                 break
             }
         }
     }
 
-    /** Reads the next valid marker, skipping padding bytes. */
     private fun readMarker(reader: BufferedInputStream): Int {
         while (true) {
             val b = reader.read()
@@ -171,43 +161,50 @@ object JpegGpsStripper {
         }
     }
 
-    /** Reads a length-prefixed segment's payload (excluding the length field itself). */
     private fun readSegmentData(reader: BufferedInputStream): ByteArray {
         val lenHigh = reader.read()
         val lenLow = reader.read()
-        if (lenHigh == -1 || lenLow == -1) return byteArrayOf()
+        if (lenHigh == -1 || lenLow == -1) {
+            throw IllegalStateException("Unexpected EOF reading segment length")
+        }
         val length = ((lenHigh shl 8) or lenLow) - 2
-        if (length <= 0) return byteArrayOf()
+        if (length < 0) {
+            throw IllegalStateException("Invalid JPEG segment length")
+        }
+        if (length == 0) return byteArrayOf()
         val data = ByteArray(length)
         var read = 0
         while (read < length) {
             val r = reader.read(data, read, length - read)
-            if (r == -1) break
+            if (r == -1) {
+                throw IllegalStateException("Unexpected EOF reading segment payload")
+            }
             read += r
         }
-        return data.copyOf(read)
+        return data
     }
 
-    /** Writes a 16-bit big-endian integer. */
     private fun writeInt16(writer: BufferedOutputStream, value: Int) {
         writer.write((value shr 8) and 0xFF)
         writer.write(value and 0xFF)
     }
 
-    /** Copies a segment (marker + length + payload) verbatim. */
     private fun copySegment(reader: BufferedInputStream, writer: BufferedOutputStream, marker: Int) {
         writer.write(0xFF)
         writer.write(marker)
         if (marker in 0xD0..0xD9 || marker == 0xD8 || marker == 0x01) return
-        val lenHigh = reader.read(); val lenLow = reader.read()
-        require(lenHigh != -1 && lenLow != -1)
+        val lenHigh = reader.read()
+        val lenLow = reader.read()
+        require(lenHigh != -1 && lenLow != -1) { "Unexpected EOF reading segment length" }
         val length = (lenHigh shl 8) or lenLow
-        writer.write(lenHigh); writer.write(lenLow)
+        require(length >= 2) { "Invalid JPEG segment length: $length" }
+        writer.write(lenHigh)
+        writer.write(lenLow)
         val buf = ByteArray(8192)
         var remaining = length - 2
         while (remaining > 0) {
             val r = reader.read(buf, 0, minOf(buf.size, remaining))
-            require(r > 0)
+            require(r > 0) { "Unexpected EOF copying segment payload" }
             writer.write(buf, 0, r)
             remaining -= r
         }

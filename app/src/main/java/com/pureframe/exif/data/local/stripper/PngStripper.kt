@@ -13,22 +13,15 @@ import java.io.OutputStream
  */
 object PngStripper {
 
-    /** EXIF chunk type code, packed as big-endian 32-bit integer. */
+    private const val MAX_CHUNK_LENGTH = 100 * 1024 * 1024 // 100 MB
+
     private val CHUNK_EXIF = chunkType("eXIf")
-
-    /** Uncompressed text chunk. */
     private val CHUNK_TEXT = chunkType("tEXt")
-
-    /** zlib-compressed text chunk. */
     private val CHUNK_ZTXT = chunkType("zTXt")
-
-    /** International UTF-8 text chunk. */
     private val CHUNK_ITXT = chunkType("iTXt")
-
-    /** Last-modified timestamp chunk. */
     private val CHUNK_TIME = chunkType("tIME")
+    private val DROP_CHUNKS = setOf(CHUNK_EXIF, CHUNK_TEXT, CHUNK_ZTXT, CHUNK_ITXT, CHUNK_TIME)
 
-    /** Packs a 4-character ASCII chunk name into a 32-bit big-endian integer. */
     private fun chunkType(name: String): Int =
         (name[0].code shl 24) or (name[1].code shl 16) or (name[2].code shl 8) or name[3].code
 
@@ -41,9 +34,12 @@ object PngStripper {
         val reader = DataInputStream(input.buffered())
         val writer = DataOutputStream(output.buffered())
 
-        // Validate PNG signature
         val sig = ByteArray(8)
-        reader.readFully(sig)
+        try {
+            reader.readFully(sig)
+        } catch (e: java.io.EOFException) {
+            throw IllegalStateException("Unexpected EOF reading PNG signature")
+        }
         require(
             sig.contentEquals(
                 byteArrayOf(
@@ -53,31 +49,44 @@ object PngStripper {
         ) { "Not a valid PNG file: signature mismatch" }
         writer.write(sig)
 
-        // Chunk-by-chunk processing
         while (true) {
-            val length = reader.readInt()   // Big-endian unsigned 32-bit
-            val type = reader.readInt()      // Big-endian chunk type code
-            val data = ByteArray(length)
-            reader.readFully(data)
-            val crc = reader.readInt()
+            val length = try {
+                reader.readInt().toLong() and 0xFFFFFFFFL
+            } catch (e: java.io.EOFException) {
+                throw IllegalStateException("Unexpected EOF reading PNG chunk length")
+            }
+            if (length > MAX_CHUNK_LENGTH) {
+                throw IllegalArgumentException("PNG chunk exceeds maximum allowed size")
+            }
+            val type = try {
+                reader.readInt()
+            } catch (e: java.io.EOFException) {
+                throw IllegalStateException("Unexpected EOF reading PNG chunk type")
+            }
+            val data = ByteArray(length.toInt())
+            try {
+                reader.readFully(data)
+            } catch (e: java.io.EOFException) {
+                throw IllegalStateException("Unexpected EOF reading PNG chunk data")
+            }
+            val crc = try {
+                reader.readInt()
+            } catch (e: java.io.EOFException) {
+                throw IllegalStateException("Unexpected EOF reading PNG chunk CRC")
+            }
 
-            // IEND must always be the last chunk — copy it and terminate
             if (type == chunkType("IEND")) {
                 writeChunk(writer, type, data, crc)
                 writer.flush()
                 return
             }
 
-            // Discard metadata chunks; copy everything else (IHDR, PLTE, IDAT, etc.)
-            if (type !in setOf(CHUNK_EXIF, CHUNK_TEXT, CHUNK_ZTXT, CHUNK_ITXT, CHUNK_TIME)) {
+            if (type !in DROP_CHUNKS) {
                 writeChunk(writer, type, data, crc)
             }
-            // If the type matched a metadata chunk, we simply do not write it —
-            // the chunk is dropped from the output stream entirely.
         }
     }
 
-    /** Writes a complete chunk (length, type, data, CRC) in big-endian. */
     private fun writeChunk(writer: DataOutputStream, type: Int, data: ByteArray, crc: Int) {
         writer.writeInt(data.size)
         writer.writeInt(type)

@@ -144,6 +144,23 @@ class JpegStripperTest {
         assertEquals("APP0 preserved", true, containsMarker(cleaned, 0xE0))
     }
 
+    @Test(expected = IllegalStateException::class)
+    fun strip_eofInEntropy_throws() {
+        // SOS segment followed by single entropy byte then EOF
+        val sosPayload = byteArrayOf(0x03, 0x01, 0x01, 0x00)
+        val sos = segment(0xDA, sosPayload)
+        val truncated = marker(0xD8) + sos + byteArrayOf(0x01)
+        strip(truncated)
+    }
+
+    @Test(expected = IllegalStateException::class)
+    fun skipSegment_invalidLength_throws() {
+        // APP1 segment with length = 1 (invalid: must be >= 2)
+        val badApp1 = byteArrayOf(0xFF.toByte(), 0xE1.toByte(), 0x00, 0x01)
+        val original = marker(0xD8) + badApp1 + marker(0xD9)
+        strip(original)
+    }
+
     /**
      * Builds a minimal synthetically valid JPEG:
      * SOI → [optional inserted segments] → SOS → [entropy] → EOI
