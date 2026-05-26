@@ -10,7 +10,7 @@ object FilenameGenerator {
         val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).apply {
             timeZone = java.util.TimeZone.getTimeZone("UTC")
         }.format(Date())
-        val uuid = UUID.randomUUID().toString().take(8)
+        val uuid = UUID.randomUUID().toString().take(12)
         // Sanitize the extension to prevent path-injection via malicious
         // DISPLAY_NAME values such as "photo.jpg/../../../evil".
         val ext = extension.trimStart('.').lowercase()

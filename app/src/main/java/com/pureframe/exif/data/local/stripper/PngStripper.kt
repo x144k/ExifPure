@@ -28,7 +28,8 @@ object PngStripper {
     /**
      * @param input Raw PNG bytes. Must begin with the 8-byte PNG signature.
      * @param output Stream to write the cleaned PNG.
-     * @throws IllegalArgumentException if the input does not start with a valid PNG signature.
+     * @throws IllegalArgumentException if the input does not start with a valid PNG signature or a chunk exceeds the size limit.
+     * @throws IllegalStateException if an unexpected EOF occurs while reading chunk data.
      */
     fun strip(input: InputStream, output: OutputStream) {
         val reader = DataInputStream(input.buffered())

@@ -20,6 +20,7 @@ object JpegStripper {
      * @param input Raw JPEG bytes. Must begin with `0xFFD8` (SOI).
      * @param output Stream to write the cleaned JPEG.
      * @throws IllegalArgumentException if the input does not start with a valid SOI.
+     * @throws IllegalStateException if an unexpected EOF occurs while reading markers or entropy data.
      */
     fun strip(input: InputStream, output: OutputStream) {
         val reader = BufferedInputStream(input)

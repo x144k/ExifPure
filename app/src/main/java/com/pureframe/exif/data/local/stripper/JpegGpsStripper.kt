@@ -21,6 +21,7 @@ object JpegGpsStripper {
      * @param input Raw JPEG bytes. Must begin with `0xFFD8`.
      * @param output Stream to write the GPS-scrubbed JPEG.
      * @throws IllegalArgumentException if the input is not a valid JPEG.
+     * @throws IllegalStateException if an unexpected EOF occurs while reading markers or entropy data.
      */
     fun strip(input: InputStream, output: OutputStream) {
         val reader = BufferedInputStream(input)
@@ -71,10 +72,24 @@ object JpegGpsStripper {
                         val next = reader.read()
                         if (next == -1) throw IllegalStateException("Unexpected EOF in JPEG entropy data")
                         when (next) {
-                            0x00 -> { writer.write(0xFF); writer.write(0x00) }
-                            in 0xD0..0xD7 -> { writer.write(0xFF); writer.write(next) }
-                            0xD9 -> { writer.write(0xFF); writer.write(0xD9); writer.flush(); return }
-                            else -> { writer.write(0xFF); writer.write(next) }
+                            0x00 -> {
+                                writer.write(0xFF)
+                                writer.write(0x00)
+                            }
+                            in 0xD0..0xD7 -> {
+                                writer.write(0xFF)
+                                writer.write(next)
+                            }
+                            0xD9 -> {
+                                writer.write(0xFF)
+                                writer.write(0xD9)
+                                writer.flush()
+                                return
+                            }
+                            else -> {
+                                writer.write(0xFF)
+                                writer.write(next)
+                            }
                         }
                     } else writer.write(b)
                 }
