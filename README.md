@@ -99,29 +99,15 @@ For a signed release build:
 
 Some features in this roadmap were inspired by [Imagepipe](https://codeberg.org/Starfish/Imagepipe), a lightweight Android utility for resizing and stripping metadata from shared images. While Imagepipe focuses on aggressive re-encoding for data savings, EXIF Pure prioritizes lossless metadata removal and preserving original image quality wherever possible.
 
-Additional inspiration for privacy-focused editing tools comes from [ImageToolbox](https://github.com/T8RIN/ImageToolbox), a powerful open-source image manipulation suite. EXIF Pure borrows the concept of pre-export markup and adjustment, but narrows the scope strictly to privacy protection rather than general creative editing.
-
 ## Upcoming Features
 
-- **Privacy Score** - See at a glance how much identifying metadata each photo contains.
 - **Camera Model Name Resolution** - View readable camera names instead of cryptic manufacturer model codes.
-- **Per-Photo Strip Mode Override** - Choose a different strip mode for a specific photo and remember it for next time.
-- **EXIF Field Tooltips** - Tap any metadata entry to learn what it means and why it matters for your privacy.
-- **Batch Metadata Summary** - Select multiple photos and see instant stats about their metadata.
 - **Original Integrity Hash** - Verify that your original photo files have never been modified.
-- **Before/After Metadata Preview** - Review exactly what metadata will remain before you export or share.
-- **Before/After Comparison** - Side-by-side viewer comparing the original photo against the cleaned export, so you can verify exactly what was removed or redacted.
 - **Export Filename Templates** - Customize filenames using date, camera name, counters, or random strings.
-- **Metadata Presets** - Save named configurations like Social Post or Archive for quick one-tap selection.
-- **Privacy Watermark** - Add a subtle text or timestamp watermark to exported images (e.g., "Shared via EXIF Pure - 2026-05-10"). Not for branding; for traceability and leak detection.
-- **Search by EXIF Field** - Find photos by camera model, GPS presence, date range, and more.
-- **Resize on export** - Set a maximum image size so large photos are scaled down before saving or sharing.
-- **Quick Crop & Rotate** - Simple pre-export cropping and rotation, plus one-tap auto-straighten for sideways photos. Bake the orientation into the image so it displays correctly everywhere, without modifying the original.
 - **Convert format on export** - Save clean copies as JPEG, PNG, or WebP instead of keeping the original file format.
-- **In-app EXIF editor** - Edit specific metadata fields, such as adding copyright or correcting the date taken, instead of only removing data.
-- **Choose what metadata to keep** - Preserve selected information, like copyright or camera model, while stripping everything else.
-- **Duplicate detection** - Find visually similar or exact-duplicate photos to help clean up storage.
-- **Privacy Redaction Tool** - Blur or pixelate faces, license plates, text, or any sensitive region before exporting. A privacy-first markup layer that redacts rather than decorates.
+- **Metadata Presets** - Save named configurations like *Social Post* or *Archive* for quick one-tap selection in the export flow.
+- **Selective Metadata Whitelist** - Preserve specific information (e.g., copyright or camera model) while stripping everything else.
+- **Quick Crop, Rotate & Resize on export** - Simple pre-export cropping, rotation, and resizing. Bake orientation into the image so it displays correctly everywhere, without modifying the original.
 - **HEIC/HEIF lossless stripping** - Strip metadata from HEIC/HEIF images without quality loss. Experimental.
 
 ---
