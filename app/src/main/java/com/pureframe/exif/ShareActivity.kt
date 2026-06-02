@@ -48,7 +48,14 @@ class ShareActivity : androidx.fragment.app.FragmentActivity() {
 
         wasBackgrounded = savedInstanceState?.getBoolean("was_bg", false) ?: false
         silentResultHandled = savedInstanceState?.getBoolean("silent_handled", false) ?: false
-        lastPauseTime = savedInstanceState?.getLong("last_pause", 0L) ?: 0L
+        // Use -1 as a sentinel for missing lastPauseTime so a fresh launch or
+        // restore from an older version does not treat epoch zero as a long
+        // backgrounding period (which would always trigger re-authentication).
+        lastPauseTime = if (savedInstanceState?.containsKey("last_pause") == true) {
+            savedInstanceState.getLong("last_pause")
+        } else {
+            -1L
+        }
 
         val container = (application as ExifPureApplication).container
         val uris = extractUrisFromIntent(intent)
@@ -194,7 +201,7 @@ class ShareActivity : androidx.fragment.app.FragmentActivity() {
                         }
                         Lifecycle.Event.ON_RESUME -> {
                             val goneFor = System.currentTimeMillis() - lastPauseTime
-                            if (wasBackgrounded && container.prefs.appLockEnabled && goneFor > 2000) {
+                            if (wasBackgrounded && lastPauseTime >= 0 && container.prefs.appLockEnabled && goneFor > 2000) {
                                 isLocked = true
                             }
                             wasBackgrounded = false

@@ -46,6 +46,14 @@ class MainActivity : FragmentActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
 
         wasBackgrounded = savedInstanceState?.getBoolean("was_bg", false) ?: false
+        // If restoring from an older version that did not save lastPauseTime,
+        // use -1 as a sentinel so the lock check is skipped rather than
+        // treating a missing value as epoch zero (which would always trigger).
+        lastPauseTime = if (savedInstanceState?.containsKey("last_pause_time") == true) {
+            savedInstanceState.getLong("last_pause_time")
+        } else {
+            -1L
+        }
 
         val container = (application as ExifPureApplication).container
 
@@ -83,7 +91,7 @@ class MainActivity : FragmentActivity() {
                                     // deletion consent) cause ON_PAUSE/ON_RESUME cycles that
                                     // should not trigger re-authentication.
                                     val goneFor = System.currentTimeMillis() - lastPauseTime
-                                    if (wasBackgrounded && container.prefs.appLockEnabled && goneFor > 2000) {
+                                    if (wasBackgrounded && lastPauseTime >= 0 && container.prefs.appLockEnabled && goneFor > 2000) {
                                         isLocked = true
                                     }
                                     // Always reset so a later resume without backgrounding
@@ -163,5 +171,6 @@ class MainActivity : FragmentActivity() {
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putBoolean("was_bg", wasBackgrounded)
+        outState.putLong("last_pause_time", lastPauseTime)
     }
 }

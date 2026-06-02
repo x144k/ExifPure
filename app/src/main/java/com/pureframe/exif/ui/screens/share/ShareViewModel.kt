@@ -17,12 +17,14 @@ import com.pureframe.exif.data.model.StripMode
 import com.pureframe.exif.data.repository.PhotoRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import java.util.concurrent.atomic.AtomicBoolean
 
 sealed class ShareUiState {
@@ -75,7 +77,21 @@ class ShareViewModel(
                     _uiState.value = ShareUiState.Processing(index + 1, uris.size)
                     val result = withContext(Dispatchers.IO) {
                         val photo = try {
-                            createPhotoFromUri(uri)
+                            // 10-second guard against slow or buggy ContentProviders.
+                            // Note: ContentResolver operations are blocking and do not
+                            // always respond to coroutine cancellation, so a provider
+                            // that truly hangs may still consume an I/O thread until
+                            // the underlying call returns. The timeout ensures the
+                            // coroutine itself never stays alive indefinitely.
+                            withTimeout(10_000) {
+                                createPhotoFromUri(uri)
+                            }
+                        } catch (e: TimeoutCancellationException) {
+                            return@withContext ShareResult(
+                                originalName = uri.lastPathSegment ?: "unknown",
+                                success = false,
+                                error = "Sharing app did not respond in time"
+                            )
                         } catch (e: SecurityException) {
                             return@withContext ShareResult(
                                 originalName = uri.lastPathSegment ?: "unknown",

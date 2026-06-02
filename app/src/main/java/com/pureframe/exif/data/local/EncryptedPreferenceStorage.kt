@@ -6,17 +6,24 @@ import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 
 class EncryptedPreferenceStorage(context: Context) {
-    private val masterKey = MasterKey.Builder(context)
-        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-        .build()
+    // MasterKey creation hits the Android Keystore and can take 100-300 ms on
+    // cold start. Keep it lazy so the EncryptedPreferenceStorage constructor
+    // itself is fast and safe to call on the main thread.
+    private val masterKey by lazy {
+        MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+    }
 
-    private val prefs: SharedPreferences = EncryptedSharedPreferences.create(
-        context,
-        "exifpure_prefs",
-        masterKey,
-        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-    )
+    private val prefs by lazy {
+        EncryptedSharedPreferences.create(
+            context,
+            "exifpure_prefs",
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+    }
 
     var themeMode: String
         get() = prefs.getString(KEY_THEME, VALUE_SYSTEM) ?: VALUE_SYSTEM
@@ -80,7 +87,9 @@ class EncryptedPreferenceStorage(context: Context) {
         current.add(0, entry)
         if (current.size > 50) current.removeAt(current.lastIndex)
         val json = current.joinToString("\n") {
-            "${it.id}|${it.originalName.replace("|", "_")}|${it.exportedName.replace("|", "_")}|${it.stripMode}|${it.timestamp}|${it.mimeType}"
+            val orig = it.originalName.replace("|", "_").replace("\n", " ").replace("\r", " ")
+            val exp = it.exportedName.replace("|", "_").replace("\n", " ").replace("\r", " ")
+            "${it.id}|$orig|$exp|${it.stripMode}|${it.timestamp}|${it.mimeType}"
         }
         prefs.edit().putString(KEY_EXPORT_LOG, json).apply()
     }
