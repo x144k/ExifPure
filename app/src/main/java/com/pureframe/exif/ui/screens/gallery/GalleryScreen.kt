@@ -70,6 +70,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -89,8 +91,10 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
@@ -111,6 +115,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * ViewModel for the gallery screen.
@@ -212,19 +218,37 @@ class GalleryViewModel(private val repository: PhotoRepository) : ViewModel() {
     private var pendingDeletePhotos: List<Photo> = emptyList()
 
     // Gallery view mode
-    private val _galleryViewMode = MutableStateFlow(repository.prefs.galleryViewMode)
+    private val _galleryViewMode = MutableStateFlow(EncryptedPreferenceStorage.VIEW_PHOTOS)
     val galleryViewMode: StateFlow<String> = _galleryViewMode.asStateFlow()
 
-    // Preference delegates
-    val sortOrder: String get() = repository.prefs.sortOrder
-    val gridSize: String get() = repository.prefs.gridSize
-    val hapticEnabled: Boolean get() = repository.prefs.hapticEnabled
-    val defaultStripMode: String get() = repository.prefs.defaultStripMode
+    // Preference delegates (cached in memory; persisted values loaded in init)
+    private var _sortOrder = EncryptedPreferenceStorage.SORT_DATE_ADDED_DESC
+    val sortOrder: String get() = _sortOrder
+
+    private var _gridSize = EncryptedPreferenceStorage.GRID_MEDIUM
+    val gridSize: String get() = _gridSize
+
+    private var _hapticEnabled = true
+    val hapticEnabled: Boolean get() = _hapticEnabled
+
+    private var _defaultStripMode = EncryptedPreferenceStorage.STRIP_ALL
+    val defaultStripMode: String get() = _defaultStripMode
+
+    // Serialize all favorite read-modify-write operations so the async init
+    // load and rapid user toggles cannot interleave and corrupt local state.
+    private val favoriteMutex = Mutex()
 
     init {
         refresh()
         viewModelScope.launch(Dispatchers.IO) {
-            _favoriteIds.value = repository.getFavoriteIds()
+            favoriteMutex.withLock {
+                _favoriteIds.value = repository.getFavoriteIds()
+            }
+            _galleryViewMode.value = repository.getGalleryViewMode()
+            _sortOrder = repository.getSortOrder()
+            _gridSize = repository.getGridSize()
+            _hapticEnabled = repository.getHapticEnabled()
+            _defaultStripMode = repository.getDefaultStripMode()
         }
     }
 
@@ -243,10 +267,9 @@ class GalleryViewModel(private val repository: PhotoRepository) : ViewModel() {
             _isLoading.value = true
             _error.value = null
             try {
-                repository.getPhotos().collect { list ->
-                    _photos.value = list
-                    _albums.value = buildAlbums(list)
-                }
+                val list = repository.getPhotos()
+                _photos.value = list
+                _albums.value = buildAlbums(list)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -280,7 +303,10 @@ class GalleryViewModel(private val repository: PhotoRepository) : ViewModel() {
 
     /** Changes the sort order and triggers a re-sort via [refresh]. */
     fun setSortOrder(order: String) {
-        repository.prefs.sortOrder = order
+        _sortOrder = order
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.setSortOrder(order)
+        }
         refresh()
     }
 
@@ -291,8 +317,10 @@ class GalleryViewModel(private val repository: PhotoRepository) : ViewModel() {
         } else {
             EncryptedPreferenceStorage.VIEW_PHOTOS
         }
-        repository.prefs.galleryViewMode = newMode
         _galleryViewMode.value = newMode
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.setGalleryViewMode(newMode)
+        }
         _currentAlbum.value = null
     }
 
@@ -313,8 +341,24 @@ class GalleryViewModel(private val repository: PhotoRepository) : ViewModel() {
 
     /** Toggles the favorite status of a single photo and syncs local state. */
     fun toggleFavorite(id: Long) {
-        repository.toggleFavorite(id)
-        _favoriteIds.value = repository.getFavoriteIds()
+        viewModelScope.launch(Dispatchers.IO) {
+            favoriteMutex.withLock {
+                repository.toggleFavorite(id)
+                _favoriteIds.value = repository.getFavoriteIds()
+            }
+        }
+    }
+
+    /** Reloads favorite IDs from persistent storage.
+     *
+     * Called when the gallery screen resumes so that changes made from
+     * the detail screen or other flows are reflected in local state. */
+    fun refreshFavorites() {
+        viewModelScope.launch(Dispatchers.IO) {
+            favoriteMutex.withLock {
+                _favoriteIds.value = repository.getFavoriteIds()
+            }
+        }
     }
 
     /** Toggles the favorites-only filter. */
@@ -588,6 +632,10 @@ fun GalleryScreen(
 
     LaunchedEffect(hasPermission) {
         if (hasPermission && photos.isEmpty() && !isLoading) viewModel.refresh()
+    }
+
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        viewModel.refreshFavorites()
     }
 
     LaunchedEffect(batchResult) {
@@ -885,12 +933,21 @@ fun GalleryScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
-        Box(modifier = Modifier.padding(padding)) {
-            when {
-                !hasPermission -> PermissionPrompt(
+        if (!hasPermission) {
+            Box(modifier = Modifier.padding(padding)) {
+                PermissionPrompt(
                     onRequest = { permissionLauncher.launch(requiredPerms) }
                 )
-                isLoading && photos.isEmpty() -> {
+            }
+        } else {
+            PullToRefreshBox(
+                isRefreshing = isLoading,
+                onRefresh = { viewModel.refresh() },
+                state = rememberPullToRefreshState(),
+                modifier = Modifier.padding(padding)
+            ) {
+                when {
+                    isLoading && photos.isEmpty() -> {
                     LazyVerticalGrid(
                         columns = GridCells.Adaptive(minSize = gridMinSize),
                         contentPadding = PaddingValues(4.dp)
@@ -907,7 +964,7 @@ fun GalleryScreen(
                     isLoading = isLoading,
                     onAlbumClick = { viewModel.openAlbum(it) }
                 )
-                else -> Column {
+                else -> Column(modifier = Modifier.fillMaxSize()) {
                     if (!isSelectionMode) {
                         Row(
                             modifier = Modifier
@@ -1085,6 +1142,7 @@ fun GalleryScreen(
             }
         }
     }
+}
 }
 
 @Composable

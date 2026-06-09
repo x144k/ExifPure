@@ -5,7 +5,7 @@ import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 
-class EncryptedPreferenceStorage(context: Context) {
+class EncryptedPreferenceStorage(context: Context) : PreferenceStorage {
     // MasterKey creation hits the Android Keystore and can take 100-300 ms on
     // cold start. Keep it lazy so the EncryptedPreferenceStorage constructor
     // itself is fast and safe to call on the main thread.
@@ -29,31 +29,31 @@ class EncryptedPreferenceStorage(context: Context) {
         get() = prefs.getString(KEY_THEME, VALUE_SYSTEM) ?: VALUE_SYSTEM
         set(v) = prefs.edit().putString(KEY_THEME, v).apply()
 
-    var outputDirName: String
+    override var outputDirName: String
         get() = prefs.getString(KEY_OUTPUT_DIR, "EXIFPure/Clean") ?: "EXIFPure/Clean"
         set(v) = prefs.edit().putString(KEY_OUTPUT_DIR, v).apply()
 
-    var defaultStripMode: String
+    override var defaultStripMode: String
         get() = prefs.getString(KEY_DEFAULT_STRIP, STRIP_ALL) ?: STRIP_ALL
         set(v) = prefs.edit().putString(KEY_DEFAULT_STRIP, v).apply()
 
-    var sortOrder: String
+    override var sortOrder: String
         get() = prefs.getString(KEY_SORT, SORT_DATE_ADDED_DESC) ?: SORT_DATE_ADDED_DESC
         set(v) = prefs.edit().putString(KEY_SORT, v).apply()
 
-    var galleryViewMode: String
+    override var galleryViewMode: String
         get() = prefs.getString(KEY_GALLERY_VIEW, VIEW_PHOTOS) ?: VIEW_PHOTOS
         set(v) = prefs.edit().putString(KEY_GALLERY_VIEW, v).apply()
 
-    var gridSize: String
+    override var gridSize: String
         get() = prefs.getString(KEY_GRID, GRID_MEDIUM) ?: GRID_MEDIUM
         set(v) = prefs.edit().putString(KEY_GRID, v).apply()
 
-    var fallbackQuality: Int
+    override var fallbackQuality: Int
         get() = prefs.getInt(KEY_QUALITY, 95)
         set(v) = prefs.edit().putInt(KEY_QUALITY, v).apply()
 
-    var hapticEnabled: Boolean
+    override var hapticEnabled: Boolean
         get() = prefs.getBoolean(KEY_HAPTIC, true)
         set(v) = prefs.edit().putBoolean(KEY_HAPTIC, v).apply()
 
@@ -61,20 +61,20 @@ class EncryptedPreferenceStorage(context: Context) {
         get() = prefs.getBoolean(KEY_SILENT_SHARE, false)
         set(v) = prefs.edit().putBoolean(KEY_SILENT_SHARE, v).apply()
 
-    fun getFavoriteIds(): Set<Long> {
+    override fun getFavoriteIds(): Set<Long> {
         return prefs.getStringSet(KEY_FAVORITES, emptySet())
             ?.mapNotNull { it.toLongOrNull() }
             ?.toSet() ?: emptySet()
     }
 
-    fun toggleFavorite(id: Long) {
+    override fun toggleFavorite(id: Long) {
         val current = prefs.getStringSet(KEY_FAVORITES, emptySet())?.toMutableSet() ?: mutableSetOf()
         val key = id.toString()
         if (current.contains(key)) current.remove(key) else current.add(key)
         prefs.edit().putStringSet(KEY_FAVORITES, current).apply()
     }
 
-    fun isFavorite(id: Long): Boolean {
+    override fun isFavorite(id: Long): Boolean {
         return prefs.getStringSet(KEY_FAVORITES, emptySet())?.contains(id.toString()) ?: false
     }
 
@@ -82,7 +82,7 @@ class EncryptedPreferenceStorage(context: Context) {
         prefs.edit().remove(KEY_FAVORITES).apply()
     }
 
-    fun addExportLog(entry: com.pureframe.exif.data.model.ExportLogEntry) {
+    override fun addExportLog(entry: com.pureframe.exif.data.model.ExportLogEntry) {
         val current = getExportLogs().toMutableList()
         current.add(0, entry)
         if (current.size > 50) current.removeAt(current.lastIndex)
@@ -94,7 +94,7 @@ class EncryptedPreferenceStorage(context: Context) {
         prefs.edit().putString(KEY_EXPORT_LOG, json).apply()
     }
 
-    fun getExportLogs(): List<com.pureframe.exif.data.model.ExportLogEntry> {
+    override fun getExportLogs(): List<com.pureframe.exif.data.model.ExportLogEntry> {
         val raw = prefs.getString(KEY_EXPORT_LOG, "") ?: return emptyList()
         if (raw.isBlank()) return emptyList()
         return raw.split("\n").mapNotNull { line ->
@@ -114,7 +114,7 @@ class EncryptedPreferenceStorage(context: Context) {
         }
     }
 
-    fun clearExportLogs() {
+    override fun clearExportLogs() {
         prefs.edit().remove(KEY_EXPORT_LOG).apply()
     }
 

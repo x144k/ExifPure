@@ -26,6 +26,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,6 +36,8 @@ import androidx.compose.ui.unit.dp
 import com.pureframe.exif.ExifPureApplication
 import com.pureframe.exif.R
 import com.pureframe.exif.data.model.ExportLogEntry
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -47,6 +50,7 @@ fun ExportHistoryScreen(
     val context = LocalContext.current
     val repository = remember { (context.applicationContext as ExifPureApplication).container.repository }
     var logs by remember { mutableStateOf(emptyList<ExportLogEntry>()) }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
         logs = repository.getExportLogs()
@@ -69,7 +73,9 @@ fun ExportHistoryScreen(
                 actions = {
                     if (logs.isNotEmpty()) {
                         IconButton(onClick = {
-                            repository.clearExportLogs()
+                            scope.launch(Dispatchers.IO) {
+                                repository.clearExportLogs()
+                            }
                             logs = emptyList()
                         }) {
                             Icon(

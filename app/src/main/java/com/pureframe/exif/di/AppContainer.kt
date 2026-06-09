@@ -4,9 +4,9 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import com.pureframe.exif.data.local.EncryptedPreferenceStorage
-import com.pureframe.exif.data.local.ExifDataSource
-import com.pureframe.exif.data.local.MediaStoreDataSource
-import com.pureframe.exif.data.local.MetadataStripper
+import com.pureframe.exif.data.local.ExifDataSourceImpl
+import com.pureframe.exif.data.local.MediaStoreDataSourceImpl
+import com.pureframe.exif.data.local.MetadataStripperImpl
 import com.pureframe.exif.data.repository.PhotoRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,9 +19,9 @@ class AppContainer(context: Context) {
     // heavy keystore work is deferred to the first internal property access.
     // The init block below forces that first access on a background thread.
     val prefs = EncryptedPreferenceStorage(appContext)
-    val mediaStore by lazy { MediaStoreDataSource(appContext.contentResolver) }
-    val exif by lazy { ExifDataSource(appContext.contentResolver) }
-    val stripper by lazy { MetadataStripper(appContext.contentResolver, prefs) }
+    val mediaStore by lazy { MediaStoreDataSourceImpl(appContext.contentResolver) }
+    val exif by lazy { ExifDataSourceImpl(appContext.contentResolver) }
+    val stripper by lazy { MetadataStripperImpl(appContext.contentResolver, prefs) }
 
     val repository by lazy {
         PhotoRepository(mediaStore, exif, stripper, prefs)

@@ -3,10 +3,11 @@ package com.pureframe.exif.data.repository
 import android.net.Uri
 import android.util.Log
 import com.pureframe.exif.data.local.DeleteResult
-import com.pureframe.exif.data.local.EncryptedPreferenceStorage
 import com.pureframe.exif.data.local.ExifDataSource
 import com.pureframe.exif.data.local.MediaStoreDataSource
 import com.pureframe.exif.data.local.MetadataStripper
+import com.pureframe.exif.data.local.PreferenceStorage
+import com.pureframe.exif.data.local.ExportResult
 import com.pureframe.exif.data.model.ExifMetadata
 import com.pureframe.exif.data.model.ExportLogEntry
 import com.pureframe.exif.data.model.Photo
@@ -16,8 +17,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withContext
 import java.util.UUID
 
@@ -25,17 +24,23 @@ class PhotoRepository(
     private val mediaStore: MediaStoreDataSource,
     private val exif: ExifDataSource,
     private val stripper: MetadataStripper,
-    val prefs: EncryptedPreferenceStorage
+    private val prefs: PreferenceStorage
 ) {
     // Singleton dispatcher so the 4-way concurrency cap is respected across
     // multiple concurrent batchExport calls, not just within one invocation.
     private val exportDispatcher = Dispatchers.IO.limitedParallelism(4)
 
-    fun getPhotos(): Flow<List<Photo>> = flow { emit(mediaStore.getPhotos()) }
+    suspend fun getPhotos(): List<Photo> = withContext(Dispatchers.IO) {
+        mediaStore.getPhotos()
+    }
 
-    suspend fun getPhoto(id: Long): Photo? = mediaStore.getPhotoById(id)
+    suspend fun getPhoto(id: Long): Photo? = withContext(Dispatchers.IO) {
+        mediaStore.getPhotoById(id)
+    }
 
-    suspend fun getExif(photo: Photo): ExifMetadata = exif.getMetadata(photo.uri)
+    suspend fun getExif(photo: Photo): ExifMetadata = withContext(Dispatchers.IO) {
+        exif.getMetadata(photo.uri)
+    }
 
     suspend fun exportClean(photo: Photo, mode: StripMode = StripMode.ALL): Result<Uri> {
         return withContext(exportDispatcher) {
@@ -56,24 +61,39 @@ class PhotoRepository(
     }
 
     suspend fun batchExport(photos: List<Photo>, mode: StripMode): List<Result<Uri>> {
-        val results = coroutineScope {
-            photos.map { photo ->
-                async(exportDispatcher) {
-                    stripper.createCleanCopy(photo, mode, outputDir = prefs.outputDirName)
-                }
-            }.awaitAll()
+        // Process in chunks of 50 so that selecting hundreds of photos does not
+        // create an unbounded number of coroutine objects. The exportDispatcher
+        // still limits active concurrency to 4 within each chunk.
+        val exportResults = photos.chunked(50).flatMap { chunk ->
+            coroutineScope {
+                chunk.map { photo ->
+                    async(exportDispatcher) {
+                        try {
+                            stripper.createCleanCopy(photo, mode, outputDir = prefs.outputDirName)
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            Result.failure<ExportResult>(e)
+                        }
+                    }
+                }.awaitAll()
+            }
         }
-        results.forEachIndexed { index, result ->
-            result.getOrNull()?.let { exportResult ->
-                try {
-                    logExport(photos[index], exportResult.filename, mode)
-                } catch (e: Exception) {
-                    if (e is CancellationException) throw e
-                    Log.w(TAG, "Export logging failed: ${e.javaClass.simpleName}")
+
+        withContext(Dispatchers.IO) {
+            exportResults.forEachIndexed { index, result ->
+                result.getOrNull()?.let { exportResult ->
+                    try {
+                        logExport(photos[index], exportResult.filename, mode)
+                    } catch (e: Exception) {
+                        if (e is CancellationException) throw e
+                        Log.w(TAG, "Export logging failed: ${e.javaClass.simpleName}")
+                    }
                 }
             }
         }
-        return results.map { it.map { r -> r.uri } }
+
+        return exportResults.map { it.map { r -> r.uri } }
     }
 
     private fun logExport(photo: Photo, exportedName: String, mode: StripMode) {
@@ -87,18 +107,58 @@ class PhotoRepository(
         ))
     }
 
-    fun getExportLogs(): List<ExportLogEntry> = prefs.getExportLogs()
+    suspend fun getExportLogs(): List<ExportLogEntry> = withContext(Dispatchers.IO) {
+        prefs.getExportLogs()
+    }
 
-    fun clearExportLogs() = prefs.clearExportLogs()
+    suspend fun clearExportLogs() = withContext(Dispatchers.IO) {
+        prefs.clearExportLogs()
+    }
 
-    fun getFavoriteIds(): Set<Long> = prefs.getFavoriteIds()
+    suspend fun getFavoriteIds(): Set<Long> = withContext(Dispatchers.IO) {
+        prefs.getFavoriteIds()
+    }
 
-    fun toggleFavorite(photoId: Long) = prefs.toggleFavorite(photoId)
+    suspend fun toggleFavorite(photoId: Long) = withContext(Dispatchers.IO) {
+        prefs.toggleFavorite(photoId)
+    }
 
-    fun isFavorite(photoId: Long): Boolean = prefs.isFavorite(photoId)
+    suspend fun isFavorite(photoId: Long): Boolean = withContext(Dispatchers.IO) {
+        prefs.isFavorite(photoId)
+    }
 
-    suspend fun deletePhotos(photos: List<Photo>): DeleteResult {
-        return mediaStore.delete(photos.map { it.uri })
+    suspend fun deletePhotos(photos: List<Photo>): DeleteResult = withContext(Dispatchers.IO) {
+        mediaStore.delete(photos.map { it.uri })
+    }
+
+    // Typed preference accessors so callers do not bypass the repository.
+
+    suspend fun getDefaultStripMode(): String = withContext(Dispatchers.IO) {
+        prefs.defaultStripMode
+    }
+
+    suspend fun getHapticEnabled(): Boolean = withContext(Dispatchers.IO) {
+        prefs.hapticEnabled
+    }
+
+    suspend fun getGalleryViewMode(): String = withContext(Dispatchers.IO) {
+        prefs.galleryViewMode
+    }
+
+    suspend fun getSortOrder(): String = withContext(Dispatchers.IO) {
+        prefs.sortOrder
+    }
+
+    suspend fun getGridSize(): String = withContext(Dispatchers.IO) {
+        prefs.gridSize
+    }
+
+    suspend fun setSortOrder(order: String) = withContext(Dispatchers.IO) {
+        prefs.sortOrder = order
+    }
+
+    suspend fun setGalleryViewMode(mode: String) = withContext(Dispatchers.IO) {
+        prefs.galleryViewMode = mode
     }
 
     companion object {

@@ -70,7 +70,7 @@ class ShareViewModel(
                 }
 
                 _uiState.value = ShareUiState.Processing(0, uris.size)
-                val defaultMode = repository.prefs.defaultStripMode
+                val defaultMode = repository.getDefaultStripMode()
                 val results = mutableListOf<ShareResult>()
 
                 uris.forEachIndexed { index, uri ->
@@ -161,8 +161,15 @@ class ShareViewModel(
         var width = 0
         var height = 0
 
+        val projection = arrayOf(
+            MediaStore.Images.Media.DISPLAY_NAME,
+            MediaStore.Images.Media.MIME_TYPE,
+            MediaStore.Images.Media.SIZE,
+            MediaStore.Images.Media.WIDTH,
+            MediaStore.Images.Media.HEIGHT
+        )
         try {
-            resolver.query(uri, null, null, null, null)?.use { cursor ->
+            resolver.query(uri, projection, null, null, null)?.use { cursor ->
                 if (cursor.moveToFirst()) {
                     cursor.getColumnIndex(MediaStore.Images.Media.DISPLAY_NAME)
                         .takeIf { it >= 0 }

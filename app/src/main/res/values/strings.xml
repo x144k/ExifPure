@@ -64,7 +64,7 @@
     <string name="save">Save</string>
     <string name="settings_save_location_confirmed">Save location saved</string>
     <string name="settings_fallback_quality">Fallback Export Quality</string>
-    <string name="settings_fallback_quality_desc">For WEBP/HEIF formats that require re-encoding</string>
+    <string name="settings_fallback_quality_desc">For WEBP and other formats that require re-encoding</string>
     <string name="settings_history">History</string>
     <string name="settings_view_history">View Export History</string>
     <string name="settings_security">Security</string>
