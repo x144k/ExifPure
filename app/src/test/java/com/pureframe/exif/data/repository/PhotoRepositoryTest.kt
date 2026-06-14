@@ -72,6 +72,7 @@ class PhotoRepositoryTest {
         override var hapticEnabled = true
 
         private val favorites = mutableSetOf<Long>()
+        private val selectedIds = mutableSetOf<Long>()
         private val logs = mutableListOf<ExportLogEntry>()
 
         override fun getFavoriteIds() = favorites.toSet()
@@ -79,6 +80,11 @@ class PhotoRepositoryTest {
             if (favorites.contains(id)) favorites.remove(id) else favorites.add(id)
         }
         override fun isFavorite(id: Long) = favorites.contains(id)
+        override fun getSelectedIds() = selectedIds.toSet()
+        override fun setSelectedIds(ids: Set<Long>) {
+            selectedIds.clear()
+            selectedIds.addAll(ids)
+        }
         override fun addExportLog(entry: ExportLogEntry) {
             logs.add(entry)
         }

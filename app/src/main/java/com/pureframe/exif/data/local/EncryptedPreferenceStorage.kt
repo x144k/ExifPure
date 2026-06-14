@@ -78,6 +78,19 @@ class EncryptedPreferenceStorage(context: Context) : PreferenceStorage {
         return prefs.getStringSet(KEY_FAVORITES, emptySet())?.contains(id.toString()) ?: false
     }
 
+    override fun getSelectedIds(): Set<Long> {
+        return prefs.getStringSet(KEY_SELECTED_IDS, emptySet())
+            ?.mapNotNull { it.toLongOrNull() }
+            ?.toSet() ?: emptySet()
+    }
+
+    override fun setSelectedIds(ids: Set<Long>) {
+        // Use commit() for selection because the user may kill the app immediately
+        // after selecting photos, and an async apply() may not finish writing.
+        // This runs on Dispatchers.IO via the repository, so it does not block UI.
+        prefs.edit().putStringSet(KEY_SELECTED_IDS, ids.map { it.toString() }.toSet()).commit()
+    }
+
     fun clearFavorites() {
         prefs.edit().remove(KEY_FAVORITES).apply()
     }
@@ -145,6 +158,7 @@ class EncryptedPreferenceStorage(context: Context) : PreferenceStorage {
         const val KEY_APP_LOCK_PIN = "app_lock_pin"
         const val KEY_USE_BIOMETRIC = "use_biometric"
         const val KEY_FAVORITES = "favorites"
+        const val KEY_SELECTED_IDS = "selected_ids"
 
         const val VALUE_SYSTEM = "system"
         const val VALUE_LIGHT = "light"

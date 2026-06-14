@@ -127,8 +127,20 @@ class PhotoRepository(
         prefs.isFavorite(photoId)
     }
 
+    suspend fun getSelectedIds(): Set<Long> = withContext(Dispatchers.IO) {
+        prefs.getSelectedIds()
+    }
+
+    suspend fun setSelectedIds(ids: Set<Long>) = withContext(Dispatchers.IO) {
+        prefs.setSelectedIds(ids)
+    }
+
     suspend fun deletePhotos(photos: List<Photo>): DeleteResult = withContext(Dispatchers.IO) {
         mediaStore.delete(photos.map { it.uri })
+    }
+
+    suspend fun deletePhotosByUri(uris: List<Uri>): DeleteResult = withContext(Dispatchers.IO) {
+        mediaStore.delete(uris)
     }
 
     // Typed preference accessors so callers do not bypass the repository.
