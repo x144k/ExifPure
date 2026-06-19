@@ -1,28 +1,23 @@
-# EXIF Pure v1.4.2
+# EXIF Pure v1.4.3
 
 ## What's New
 
-### Hardened Export & Share Handling
-The export and share pipeline has been hardened against edge cases that could cause crashes or leaks:
-- Sharing photos to EXIF Pure from other apps no longer crashes on malformed share intents
-- Exported filenames are properly sanitized to prevent path traversal
-- Shared image URIs are handled more safely, preventing potential metadata leakage
-- The export screen now remembers your chosen strip mode after rotating the device
+### Faster, More Reliable Startup
+The app now initializes its encrypted storage in the background, so the splash screen and first launch feel snappier. If the system kills the app while it is in the background, the biometric lock now correctly measures the real time you were away instead of immediately asking again.
 
-### Stronger Metadata Stripping
-The lossless JPEG and PNG strippers now reject malformed images instead of producing corrupt output:
-- Better handling of truncated or corrupted image segments
-- Improved EOF detection during strip operations
-- GPS-only strip mode is now covered by dedicated unit tests for both JPEG and PNG
+### Smoother Gallery
+Sorting, filtering, and searching no longer run on the main thread, so the gallery stays responsive even with thousands of photos. Your selection now survives a full app restart or swipe-from-recents, and transient MediaStore errors are surfaced instead of showing an empty gallery.
 
-### Misc
-- Random filenames for exported images now use more entropy, making collisions extremely unlikely
-- Documentation and code comments cleaned up across the stripper modules
+### Safer, More Efficient Exports
+Large batch exports are processed in chunks so memory use stays bounded. WEBP and HEIF fallback exports now preserve the original image orientation, and the export pipeline uses fewer redundant file operations.
+
+### Tidier Internals
+Repository methods now consistently perform storage and MediaStore work on background threads. Share-intent handling requests only the columns it actually needs and times out after 10 seconds to avoid hanging on misbehaving providers.
 
 ## SHA-256 Checksums
 
 ```
-2fb64b93daf26dc1b64e0e45191a993ffc7f054066025b1257904c7f2d55d628  app-release.apk
+eaaa04184fcd174c6da851a73480e03e4e3378c8e7c65211647a1863b6e42057  app-release.apk
 ```
 
 ## Installation
