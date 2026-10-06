@@ -1,4 +1,5 @@
 package com.pureframe.exif.ui.theme
+
 import androidx.compose.ui.graphics.Color
 
 import android.app.Activity

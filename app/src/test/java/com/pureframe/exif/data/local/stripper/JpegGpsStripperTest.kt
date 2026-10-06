@@ -76,9 +76,7 @@ class JpegGpsStripperTest {
         val original = buildMinimalJpeg(insertAfterSoi = buildExifApp1())
         val cleaned = strip(original)
 
-        // Verify still a valid JPEG
-        assertEquals("Must start with SOI", 0xD8, cleaned[1].toInt() and 0xFF)
-        assertEquals("Must end with EOI", 0xD9, cleaned[cleaned.size - 1].toInt() and 0xFF)
+        assertJpegStructureValid(cleaned)
 
         // GPS IFD entry count (at payload offset 32) should be zeroed
         val gpsEntryCountLow = cleaned[38].toInt() and 0xFF
@@ -102,8 +100,7 @@ class JpegGpsStripperTest {
         val original = buildMinimalJpeg(insertAfterSoi = app1)
         val cleaned = strip(original)
 
-        assertEquals("Must start with SOI", 0xD8, cleaned[1].toInt() and 0xFF)
-        assertEquals("Must end with EOI", 0xD9, cleaned[cleaned.size - 1].toInt() and 0xFF)
+        assertJpegStructureValid(cleaned)
 
         val gpsEntryCountHigh = cleaned[38].toInt() and 0xFF
         val gpsEntryCountLow = cleaned[39].toInt() and 0xFF
@@ -132,5 +129,83 @@ class JpegGpsStripperTest {
         // Truncated APP1 segment
         val truncated = marker(0xD8) + byteArrayOf(0xFF.toByte(), 0xE1.toByte(), 0x00) + marker(0xD9)
         strip(truncated)
+    }
+
+    @Test
+    fun strip_noApp1_unchanged() {
+        val original = buildMinimalJpeg()
+        val cleaned = strip(original)
+        assertArrayEquals("JPEG without APP1 should be unchanged", original, cleaned)
+    }
+
+    @Test
+    fun strip_app1NotExif_unchanged() {
+        val app1 = segment(0xE1, "XMP\u0000".toByteArray(Charsets.US_ASCII))
+        val original = buildMinimalJpeg(insertAfterSoi = app1)
+        val cleaned = strip(original)
+        assertJpegStructureValid(cleaned)
+        assertArrayEquals("APP1 that is not EXIF should be unchanged", original, cleaned)
+    }
+
+    @Test
+    fun strip_corruptedTiffEndian_unchanged() {
+        val exifHeader = "Exif\u0000\u0000".toByteArray(Charsets.US_ASCII)
+        val badTiff = "XX".toByteArray(Charsets.US_ASCII) + int16LE(0x002A) + int32LE(8)
+        val app1 = segment(0xE1, exifHeader + badTiff)
+        val original = buildMinimalJpeg(insertAfterSoi = app1)
+        val cleaned = strip(original)
+        assertJpegStructureValid(cleaned)
+        assertArrayEquals("Corrupted TIFF endian should leave APP1 unchanged", original, cleaned)
+    }
+
+    @Test
+    fun strip_gpsPointerOverlapsIfd0_unchanged() {
+        val exifHeader = "Exif\u0000\u0000".toByteArray(Charsets.US_ASCII)
+        val tiffHeader = "II".toByteArray(Charsets.US_ASCII) + int16LE(0x002A) + int32LE(8)
+        // GPS pointer (8) overlaps IFD0 start (8), triggering the overlap guard
+        val ifd0 = int16LE(1) +
+                int16LE(0x8825) + int16LE(4) + int32LE(1) + int32LE(8) +
+                int32LE(0)
+        val app1 = segment(0xE1, exifHeader + tiffHeader + ifd0)
+        val original = buildMinimalJpeg(insertAfterSoi = app1)
+        val cleaned = strip(original)
+        assertJpegStructureValid(cleaned)
+        assertArrayEquals("Overlapping GPS pointer should leave APP1 unchanged", original, cleaned)
+    }
+
+    @Test
+    fun strip_gpsWrongType_unchanged() {
+        val exifHeader = "Exif\u0000\u0000".toByteArray(Charsets.US_ASCII)
+        val tiffHeader = "II".toByteArray(Charsets.US_ASCII) + int16LE(0x002A) + int32LE(8)
+        // GPS pointer with type = 1 (should be 4) and count = 1
+        val ifd0 = int16LE(1) +
+                int16LE(0x8825) + int16LE(1) + int32LE(1) + int32LE(26) +
+                int32LE(0)
+        val app1 = segment(0xE1, exifHeader + tiffHeader + ifd0)
+        val original = buildMinimalJpeg(insertAfterSoi = app1)
+        val cleaned = strip(original)
+        assertJpegStructureValid(cleaned)
+        assertArrayEquals("GPS pointer with wrong type should leave APP1 unchanged", original, cleaned)
+    }
+
+    @Test
+    fun strip_gpsPointerOutOfBounds_unchanged() {
+        val exifHeader = "Exif\u0000\u0000".toByteArray(Charsets.US_ASCII)
+        val tiffHeader = "II".toByteArray(Charsets.US_ASCII) + int16LE(0x002A) + int32LE(8)
+        // GPS pointer points well past the end of the EXIF data
+        val ifd0 = int16LE(1) +
+                int16LE(0x8825) + int16LE(4) + int32LE(1) + int32LE(1000) +
+                int32LE(0)
+        val app1 = segment(0xE1, exifHeader + tiffHeader + ifd0)
+        val original = buildMinimalJpeg(insertAfterSoi = app1)
+        val cleaned = strip(original)
+        assertJpegStructureValid(cleaned)
+        assertArrayEquals("Out-of-bounds GPS pointer should leave APP1 unchanged", original, cleaned)
+    }
+
+    private fun assertJpegStructureValid(data: ByteArray) {
+        assertEquals("Must start with SOI", 0xD8, data[1].toInt() and 0xFF)
+        assertEquals("Must end with EOI", 0xD9, data[data.size - 1].toInt() and 0xFF)
+        assertEquals("EOI must be preceded by 0xFF", 0xFF, data[data.size - 2].toInt() and 0xFF)
     }
 }
