@@ -138,7 +138,7 @@ class ShareActivity : androidx.fragment.app.FragmentActivity() {
                 else -> isSystemInDarkTheme()
             }
 
-            val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+            val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
             var hasHandledFirstResume by rememberSaveable { mutableStateOf(false) }
             androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
                 val observer = LifecycleEventObserver { _, event ->
