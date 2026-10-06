@@ -21,6 +21,9 @@ interface PreferenceStorage {
     fun toggleFavorite(id: Long)
     fun isFavorite(id: Long): Boolean
 
+    fun getSelectedIds(): Set<Long>
+    fun setSelectedIds(ids: Set<Long>)
+
     fun addExportLog(entry: ExportLogEntry)
     fun getExportLogs(): List<ExportLogEntry>
     fun clearExportLogs()
