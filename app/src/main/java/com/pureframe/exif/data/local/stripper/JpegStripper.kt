@@ -56,11 +56,11 @@ object JpegStripper {
 
                 State.ENTROPY -> {
                     val b = reader.read()
-                    if (b == -1) break // Unexpected EOF — abort gracefully
+                    if (b == -1) throw IllegalStateException("Unexpected EOF in JPEG entropy data")
 
                     if (b == 0xFF) {
                         val next = reader.read()
-                        if (next == -1) break
+                        if (next == -1) throw IllegalStateException("Unexpected EOF in JPEG entropy data")
 
                         when (next) {
                             0x00 -> {
@@ -126,6 +126,7 @@ object JpegStripper {
         require(lenHigh != -1 && lenLow != -1) { "Unexpected EOF reading segment length" }
 
         val length = (lenHigh shl 8) or lenLow
+        require(length >= 2) { "Invalid JPEG segment length: $length" }
         writer.write(lenHigh)
         writer.write(lenLow)
 
@@ -143,9 +144,21 @@ object JpegStripper {
     private fun skipSegment(reader: BufferedInputStream) {
         val lenHigh = reader.read()
         val lenLow = reader.read()
-        if (lenHigh == -1 || lenLow == -1) return
+        if (lenHigh == -1 || lenLow == -1) {
+            throw IllegalStateException("Unexpected EOF reading segment length")
+        }
         val length = (lenHigh shl 8) or lenLow
-        reader.skip((length - 2).toLong())
+        if (length < 2) {
+            throw IllegalStateException("Invalid JPEG segment length: $length")
+        }
+        var remaining = (length - 2).toLong()
+        while (remaining > 0) {
+            val skipped = reader.skip(remaining)
+            if (skipped <= 0) {
+                throw IllegalStateException("Unexpected EOF skipping JPEG segment")
+            }
+            remaining -= skipped
+        }
     }
 
     /** Parser state: either reading segment headers or inside entropy data. */

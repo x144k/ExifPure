@@ -224,4 +224,20 @@ class PngStripperTest {
         assertTrue("IHDR preserved", containsChunk(cleaned, "IHDR"))
         assertTrue("IEND preserved", containsChunk(cleaned, "IEND"))
     }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun strip_oversizedChunk_throws() {
+        // PNG with a chunk claiming length > MAX_CHUNK_LENGTH (100 MB)
+        val out = java.io.ByteArrayOutputStream()
+        val sig = byteArrayOf(
+            0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A
+        )
+        out.write(sig)
+        out.writeInt(0x06400001) // 100 MB + 1
+        out.write("eXIf".toByteArray(Charsets.US_ASCII))
+        out.write(byteArrayOf(0x00))
+
+        strip(out.toByteArray())
+    }
+
 }
