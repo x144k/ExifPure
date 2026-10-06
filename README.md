@@ -22,17 +22,16 @@ A local-only, zero-permission-excess photo organizer for Android. Browse your ga
 
 | Feature | Description |
 |---------|-------------|
-| **Gallery Browser** | Browse all device photos via MediaStore. Scoped-storage compliant on Android 10+. |
+| **Gallery Browser** | Browse all device photos and albums via MediaStore. Sort by date, name, or size. |
+| **Photo Detail View** | Full-screen preview with a complete EXIF metadata table, strip mode selection, one-tap export, and a before/after comparison card. |
 | **EXIF Inspector** | View camera make/model, lens, exposure, ISO, focal length, GPS coordinates, and orientation. |
 | **Lossless Metadata Stripper** | JPEG and PNG are rewritten segment-by-segment with zero re-compression. WEBP/HEIF fall back to high-quality re-encode. |
 | **Strip Modes** | `All Metadata` removes everything. `GPS Only` removes only location data while preserving camera info. |
 | **Batch Export** | Select multiple photos and share clean copies in one action. |
-| **Favorites & Search** | Star photos, filter by favorites, search by filename or album name. |
-| **Sort & Grid** | Sort by date, name, or size. Toggle small/medium/large grid density. |
+| **Share Intent Processing** | Share images from any app directly to EXIF Pure. Metadata is automatically stripped and a clean copy is saved without opening the main app. |
+| **Favorites** | Star photos and filter your gallery to show only favorites. |
 | **Biometric Lock** | Require fingerprint or face unlock to open the app. Re-locks automatically when backgrounded. |
-| **Encrypted Preferences** | Settings and favorites stored with AES-256 SIV/GCM via `EncryptedSharedPreferences`. |
-| **Export History** | Log of every clean copy exported, with timestamp and strip mode. |
-| **Edge-to-Edge UI** | Material 3 design with full edge-to-edge layout and dynamic color support on Android 12+. |
+| **Export History** | Review a log of every clean copy exported, with timestamp and strip mode. |
 
 ---
 
@@ -108,14 +107,20 @@ For a signed release build:
 
 ---
 
+## Inspiration
+
+Some features in this roadmap were inspired by [Imagepipe](https://codeberg.org/Starfish/Imagepipe), a lightweight Android utility for resizing and stripping metadata from shared images. While Imagepipe focuses on aggressive re-encoding for data savings, EXIF Pure prioritizes lossless metadata removal and preserving original image quality wherever possible.
+
 ## Upcoming Features
 
-- [x] **Folder/album view**; group photos by bucket/album instead of a flat grid.
-- [x] **Dark theme enforcement**; force dark mode independently of system setting.
-- [ ] **Auto-export on share**; intercept system share intents to automatically strip metadata when sharing from other apps.
-- [ ] **In-app EXIF editor**; modify specific fields (e.g., add copyright, correct date) instead of only stripping.
-- [ ] **Duplicate detection**; find visually similar or exact-duplicate photos to help clean up storage.
-- [ ] **HEIC/HEIF lossless stripping**; extend the custom segment parser to handle HEIC containers without bitmap re-encode. Experimental; may require HEVC NAL scanning for embedded SEI metadata.
+- **Silent share mode** - Share images to EXIF Pure and have them processed and forwarded instantly, without opening the app UI.
+- **Resize on export** - Set a maximum image size so large photos are scaled down before saving or sharing.
+- **Convert format on export** - Save clean copies as JPEG, PNG, or WebP instead of keeping the original file format.
+- **In-app EXIF editor** - Edit specific metadata fields, such as adding copyright or correcting the date taken, instead of only removing data.
+- **Choose what metadata to keep** - Preserve selected information, like copyright or camera model, while stripping everything else.
+- **Duplicate detection** - Find visually similar or exact-duplicate photos to help clean up storage.
+- **Fix sideways photos on export** - Ensure photos display correctly in every app by baking rotation into the image itself during conversion or resize.
+- **HEIC/HEIF lossless stripping** - Strip metadata from HEIC/HEIF images without quality loss. Experimental.
 
 ---
 
