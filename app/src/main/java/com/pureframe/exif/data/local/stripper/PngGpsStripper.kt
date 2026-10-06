@@ -26,7 +26,8 @@ object PngGpsStripper {
     /**
      * @param input Raw PNG bytes. Must begin with the 8-byte PNG signature.
      * @param output Stream to write the GPS-scrubbed PNG.
-     * @throws IllegalArgumentException if the input is not a valid PNG.
+     * @throws IllegalArgumentException if the input is not a valid PNG or a chunk exceeds the size limit.
+     * @throws IllegalStateException if an unexpected EOF occurs while reading chunk data.
      */
     fun strip(input: InputStream, output: OutputStream) {
         val reader = DataInputStream(input.buffered())
