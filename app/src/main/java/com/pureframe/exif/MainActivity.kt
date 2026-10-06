@@ -56,6 +56,7 @@ class MainActivity : FragmentActivity() {
         }
 
         val container = (application as ExifPureApplication).container
+        val activity = this@MainActivity
 
         setContent {
             CompositionLocalProvider(LocalAppContainer provides container) {
@@ -78,9 +79,10 @@ class MainActivity : FragmentActivity() {
                         val observer = LifecycleEventObserver { _, event ->
                             when (event) {
                                 Lifecycle.Event.ON_PAUSE -> {
-                                    val activity = lifecycleOwner as? android.app.Activity
+                                    // Use the captured activity reference instead of casting the
+                                    // lifecycle owner, which may be a wrapper that is not an Activity.
                                     // Do not treat rotation or resize as backgrounding.
-                                    if (activity?.isChangingConfigurations != true) {
+                                    if (!activity.isChangingConfigurations) {
                                         wasBackgrounded = true
                                         lastPauseTime = System.currentTimeMillis()
                                     }
