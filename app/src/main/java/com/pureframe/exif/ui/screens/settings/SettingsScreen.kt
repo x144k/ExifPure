@@ -45,7 +45,8 @@ fun SettingsScreen(
     onHistoryClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
-    val prefs = remember { (context.applicationContext as ExifPureApplication).container.prefs }
+    val container = remember { (context.applicationContext as ExifPureApplication).container }
+    val prefs = container.prefs
 
     var theme by remember { mutableStateOf(prefs.themeMode) }
     var outputDir by remember { mutableStateOf(prefs.outputDirName) }
@@ -76,9 +77,9 @@ fun SettingsScreen(
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Appearance", style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(8.dp))
-                    ThemeRow("System default", EncryptedPreferenceStorage.VALUE_SYSTEM, theme) { theme = it; prefs.themeMode = it }
-                    ThemeRow("Light", EncryptedPreferenceStorage.VALUE_LIGHT, theme) { theme = it; prefs.themeMode = it }
-                    ThemeRow("Dark", EncryptedPreferenceStorage.VALUE_DARK, theme) { theme = it; prefs.themeMode = it }
+                    ThemeRow("System default", EncryptedPreferenceStorage.VALUE_SYSTEM, theme) { theme = it; container.setThemeMode(it) }
+                    ThemeRow("Light", EncryptedPreferenceStorage.VALUE_LIGHT, theme) { theme = it; container.setThemeMode(it) }
+                    ThemeRow("Dark", EncryptedPreferenceStorage.VALUE_DARK, theme) { theme = it; container.setThemeMode(it) }
                 }
             }
 

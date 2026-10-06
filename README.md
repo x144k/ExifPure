@@ -111,7 +111,7 @@ For a signed release build:
 ## Upcoming Features
 
 - [x] **Folder/album view**; group photos by bucket/album instead of a flat grid.
-- [ ] **Dark theme enforcement**; force dark mode independently of system setting (currently follows system).
+- [x] **Dark theme enforcement**; force dark mode independently of system setting.
 - [ ] **Widget**; home screen widget showing a random favorite photo.
 - [ ] **Duplicate detection**; find visually similar or exact-duplicate photos to help clean up storage.
 - [ ] **Auto-export on share**; intercept system share intents to automatically strip metadata when sharing from other apps.
