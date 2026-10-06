@@ -100,7 +100,7 @@ class DetailViewModel(
     private val photoId: Long
 ) : ViewModel() {
 
-    // ── Photo & metadata ───────────────────────────────────────────────
+    // Photo & metadata
     /** The photo being inspected. Loaded asynchronously on init. */
     private val _photo = MutableStateFlow<Photo?>(null)
     val photo: StateFlow<Photo?> = _photo.asStateFlow()
@@ -109,7 +109,7 @@ class DetailViewModel(
     private val _exif = MutableStateFlow<ExifMetadata?>(null)
     val exif: StateFlow<ExifMetadata?> = _exif.asStateFlow()
 
-    // ── Export state ───────────────────────────────────────────────────
+    // Export state
     /** True while [exportClean] is awaiting the stripper and MediaStore insertion. */
     private val _isExporting = MutableStateFlow(false)
     val isExporting: StateFlow<Boolean> = _isExporting.asStateFlow()
@@ -135,12 +135,12 @@ class DetailViewModel(
     private val _exportedExif = MutableStateFlow<ExifMetadata?>(null)
     val exportedExif: StateFlow<ExifMetadata?> = _exportedExif.asStateFlow()
 
-    // ── Favorite state ───────────────────────────────────────────────────
+    // Favorite state
     /** True if this photo is in the user's favorites. */
     private val _isFavorite = MutableStateFlow(false)
     val isFavorite: StateFlow<Boolean> = _isFavorite.asStateFlow()
 
-    // ── Preference delegates ────────────────────────────────────────────
+    // Preference delegates
     /** Default strip mode from preferences (ALL or GPS_ONLY). */
     val defaultStripMode: StripMode
         get() = if (repository.prefs.defaultStripMode == EncryptedPreferenceStorage.STRIP_GPS)
@@ -349,7 +349,7 @@ fun DetailScreen(
             ) {
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // ── Photo preview ──────────────────────────────────────────────
+                // Photo preview
                 Card(
                     shape = RoundedCornerShape(16.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -373,17 +373,17 @@ fun DetailScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // ── File info ──────────────────────────────────────────────────
+                // File info
                 PhotoInfoCard(photo = photo!!)
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // ── EXIF metadata ──────────────────────────────────────────────
+                // EXIF metadata
                 ExifCard(exif = exif)
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // ── Strip mode selection ───────────────────────────────────────
+                // Strip mode selection
                 StripModeCard(
                     selected = selectedStripMode,
                     onSelect = { selectedStripMode = it }
@@ -391,7 +391,7 @@ fun DetailScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // ── Export comparison (shown after successful export) ──────────
+                // Export comparison
                 if (exportedExif != null && exif != null) {
                     ComparisonCard(
                         original = exif!!,
@@ -408,7 +408,7 @@ fun DetailScreen(
     }
 }
 
-// ── Helper composables ─────────────────────────────────────────────────────
+
 
 @Composable
 private fun PhotoInfoCard(photo: Photo) {

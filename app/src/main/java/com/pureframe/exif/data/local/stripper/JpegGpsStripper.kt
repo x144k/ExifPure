@@ -6,41 +6,19 @@ import java.io.InputStream
 import java.io.OutputStream
 
 /**
- * GPS-only stripper for JPEG files.
+ * Strips only GPS coordinates from JPEG EXIF while preserving other metadata.
  *
- * Unlike [JpegStripper], which removes the entire APP1/EXIF segment, this class
- * **preserves all EXIF data except GPS coordinates**. It achieves this by parsing
- * the TIFF structure inside the APP1 segment and corrupting the GPS IFD so that
- * standard EXIF readers skip it, while leaving all other IFD entries intact.
+ * Parses the TIFF structure inside the APP1 segment, locates the GPS IFD via tag
+ * `0x8825`, and zeros its entry count so standard readers skip it. This avoids
+ * the complex offset recalculation that full removal would require.
  *
- * ## Strategy overview
- * 1. Locate the APP1 segment containing the EXIF payload.
- * 2. Parse the TIFF header to determine byte order (little-endian or big-endian).
- * 3. Read IFD0 (Image File Directory 0) and scan its entries for tag `0x8825`
- *    (GPSInfo IFD Pointer).
- * 4. Overwrite the GPS IFD's entry-count field with zeros, effectively declaring
- *    the IFD empty. Standard readers then skip the GPS block entirely.
- * 5. Recalculate and rewrite the APP1 segment with the modified payload.
- *
- * ## Why corruption instead of full removal?
- * Removing individual IFD entries would require recalculating offsets for all
- * subsequent entries and updating the TIFF header's offset chain — a complex and
- * error-prone rewrite. Zeroing the entry count is a single-byte change that
- * produces the same observable result (no GPS data visible to readers) without
- * shifting any offsets or changing segment lengths.
- *
- * ## Caveat
- * This is a **best-effort** approach. Sophisticated forensic tools that parse
- * raw TIFF structures may still detect the original GPS IFD offset and recover
- * coordinates from the unmodified payload bytes. For absolute GPS removal,
- * use [JpegStripper] (full EXIF removal) or re-encode the image.
+ * Note: forensic tools that scan raw TIFF bytes may still recover GPS data.
+ * For absolute removal, use [JpegStripper] instead.
  */
 object JpegGpsStripper {
 
     /**
-     * Strips GPS coordinates from a JPEG while preserving all other EXIF metadata.
-     *
-     * @param input  Raw JPEG bytes. Must begin with `0xFFD8`.
+     * @param input Raw JPEG bytes. Must begin with `0xFFD8`.
      * @param output Stream to write the GPS-scrubbed JPEG.
      * @throws IllegalArgumentException if the input is not a valid JPEG.
      */
@@ -48,7 +26,7 @@ object JpegGpsStripper {
         val reader = BufferedInputStream(input)
         val writer = BufferedOutputStream(output)
 
-        // ── Validate SOI ───────────────────────────────────────────────────
+        // Validate SOI
         require(reader.read() == 0xFF && reader.read() == 0xD8) {
             "Invalid JPEG: expected SOI marker 0xFFD8"
         }
@@ -107,24 +85,10 @@ object JpegGpsStripper {
     }
 
     /**
-     * Corrupts the GPS IFD inside a TIFF/EXIF payload by zeroing its entry count.
-     *
-     * The TIFF structure begins after the 6-byte "Exif\0\0" header. The layout is:
-     * ```
-     * [2 bytes: byte order "II" or "MM"]
-     * [2 bytes: magic 0x002A]
-     * [4 bytes: offset to IFD0]
-     * [IFD0: 2-byte entry count + N × 12-byte entries + 4-byte next-IFD offset]
-     * ```
-     *
-     * Each IFD entry is 12 bytes:
-     * ```
-     * [2 bytes: tag ID] [2 bytes: type] [4 bytes: count/values] [4 bytes: value or offset]
-     * ```
+     * Zeros the GPS IFD entry count inside a TIFF/EXIF payload.
      *
      * Tag `0x8825` (GPSInfo IFD Pointer) contains the offset to the GPS IFD.
      * We locate that IFD and overwrite its first 2 bytes (entry count) with zeros.
-     * Standard EXIF readers see count=0 and skip the entire IFD.
      *
      * @param data The APP1 segment payload (including the 6-byte Exif header).
      */
@@ -132,14 +96,14 @@ object JpegGpsStripper {
         val tiffStart = 6
         if (data.size < tiffStart + 8) return
 
-        // ── Determine byte order ─────────────────────────────────────────
+        // Determine byte order
         val littleEndian = when {
             data[tiffStart] == 'I'.code.toByte() && data[tiffStart + 1] == 'I'.code.toByte() -> true
             data[tiffStart] == 'M'.code.toByte() && data[tiffStart + 1] == 'M'.code.toByte() -> false
             else -> return // Not a valid TIFF header
         }
 
-        // ── Helper lambdas for multi-byte reads ──────────────────────────
+        // Helper lambdas for multi-byte reads
         fun readInt16(offset: Int): Int {
             return if (littleEndian) {
                 (data[offset].toInt() and 0xFF) or ((data[offset + 1].toInt() and 0xFF) shl 8)
@@ -162,7 +126,7 @@ object JpegGpsStripper {
             }
         }
 
-        // ── Locate IFD0 ──────────────────────────────────────────────────
+        // Locate IFD0
         val ifd0Offset = readInt32(tiffStart + 4)
         val ifd0Start = tiffStart + ifd0Offset
         if (ifd0Start < 0 || ifd0Start >= data.size - 2) return
@@ -170,7 +134,7 @@ object JpegGpsStripper {
         val entryCount = readInt16(ifd0Start)
         if (entryCount < 0 || entryCount > 1000) return
 
-        // ── Scan IFD0 entries for GPS pointer (tag 0x8825) ────────────
+        // Scan IFD0 entries for GPS pointer (tag 0x8825)
         for (i in 0 until entryCount) {
             val entryOffset = ifd0Start + 2 + (i * 12)
             if (entryOffset + 12 > data.size) break
