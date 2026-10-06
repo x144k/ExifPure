@@ -1,4 +1,60 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">EXIF Pure</string>
+
+    <!-- ShareActivity -->
+    <string name="share_no_images">No images found to share</string>
+    <string name="share_metadata_stripped">Metadata stripped - select app to share</string>
+    <string name="share_clean_copy">Share clean copy</string>
+    <string name="share_error_generic">Unable to process image. File may be corrupted or unsupported.</string>
+    <string name="share_error_corrupted">Image file appears to be corrupted or incomplete</string>
+    <string name="share_error_unsupported">Unable to read this image. It may be in an unsupported format.</string>
+    <string name="share_error_storage">Unable to save the cleaned image</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="back">Back</string>
+    <string name="settings_appearance_layout">Appearance &amp; Layout</string>
+    <string name="settings_theme">Theme</string>
+    <string name="theme_system">System default</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="settings_grid_size">Grid Size</string>
+    <string name="grid_small">Small</string>
+    <string name="grid_medium">Medium</string>
+    <string name="grid_large">Large</string>
+    <string name="settings_sort_order">Sort Order</string>
+    <string name="sort_date_added_desc">Date Added (newest first)</string>
+    <string name="sort_date_added_asc">Date Added (oldest first)</string>
+    <string name="sort_name_asc">Name (A-Z)</string>
+    <string name="sort_name_desc">Name (Z-A)</string>
+    <string name="sort_size_desc">Size (largest first)</string>
+    <string name="settings_haptic">Haptic Feedback</string>
+    <string name="settings_haptic_desc">Vibrate on actions</string>
+    <string name="settings_export_behavior">Export Behavior</string>
+    <string name="settings_default_strip">Default Strip Mode</string>
+    <string name="settings_default_strip_desc">Applies to all exports and shares unless you change it for a specific photo</string>
+    <string name="strip_all">Remove All Metadata</string>
+    <string name="strip_gps">Remove GPS Only</string>
+    <string name="settings_silent_share">Silent Share Mode</string>
+    <string name="settings_silent_share_desc">Process single shared images instantly without showing the app</string>
+    <string name="settings_export_output">Export Output</string>
+    <string name="settings_save_location">Save Location</string>
+    <string name="settings_save_location_desc">Clean copies are saved inside Pictures/ on your device</string>
+    <string name="settings_subdir_name">Subdirectory name</string>
+    <string name="save">Save</string>
+    <string name="settings_fallback_quality">Fallback Export Quality</string>
+    <string name="settings_fallback_quality_desc">For WEBP/HEIF formats that require re-encoding</string>
+    <string name="settings_history">History</string>
+    <string name="settings_view_history">View Export History</string>
+    <string name="settings_security">Security</string>
+    <string name="settings_data">Data</string>
+    <string name="settings_clear_favorites">Clear All Favorites</string>
+    <string name="settings_about">About</string>
+    <string name="about_tagline">Privacy-first local photo organizer</string>
+    <string name="about_privacy">No accounts. No ads. No tracking. All data stays on your device.</string>
+
+    <!-- Settings misc -->
+    <string name="settings_quality_percent">%1$d%%</string>
+    <string name="settings_version">EXIF Pure v%1$s</string>
 </resources>
