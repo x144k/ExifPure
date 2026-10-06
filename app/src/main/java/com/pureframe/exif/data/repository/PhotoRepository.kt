@@ -1,6 +1,7 @@
 package com.pureframe.exif.data.repository
 
 import android.net.Uri
+import com.pureframe.exif.data.local.DeleteResult
 import com.pureframe.exif.data.local.EncryptedPreferenceStorage
 import com.pureframe.exif.data.local.ExifDataSource
 import com.pureframe.exif.data.local.MediaStoreDataSource
@@ -69,17 +70,7 @@ class PhotoRepository(
 
     fun isFavorite(photoId: Long): Boolean = prefs.isFavorite(photoId)
 
-    suspend fun deletePhotos(photos: List<Photo>): Int = withContext(Dispatchers.IO) {
-        var deleted = 0
-        photos.forEach { photo ->
-            try {
-                val rows = mediaStore.delete(photo.uri)
-                if (rows > 0) deleted++
-            } catch (e: Exception) {
-                if (e is CancellationException) throw e
-                // Skip silently; individual photo deletion failures are non-critical
-            }
-        }
-        deleted
+    suspend fun deletePhotos(photos: List<Photo>): DeleteResult {
+        return mediaStore.delete(photos.map { it.uri })
     }
 }

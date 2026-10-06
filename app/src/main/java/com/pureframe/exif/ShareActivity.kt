@@ -34,6 +34,7 @@ class ShareActivity : androidx.fragment.app.FragmentActivity() {
     // ON_PAUSE is more reliable than ON_STOP for detecting genuine backgrounding
     // on API < 28 and during split-screen transitions.
     private var wasBackgrounded = false
+    private var lastPauseTime = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -154,10 +155,12 @@ class ShareActivity : androidx.fragment.app.FragmentActivity() {
                             val activity = lifecycleOwner as? android.app.Activity
                             if (activity?.isChangingConfigurations != true) {
                                 wasBackgrounded = true
+                                lastPauseTime = System.currentTimeMillis()
                             }
                         }
                         Lifecycle.Event.ON_RESUME -> {
-                            if (wasBackgrounded && container.prefs.appLockEnabled) {
+                            val goneFor = System.currentTimeMillis() - lastPauseTime
+                            if (wasBackgrounded && container.prefs.appLockEnabled && goneFor > 2000) {
                                 isLocked = true
                             }
                             wasBackgrounded = false

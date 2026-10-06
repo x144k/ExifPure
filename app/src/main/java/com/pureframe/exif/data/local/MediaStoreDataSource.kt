@@ -1,14 +1,21 @@
 package com.pureframe.exif.data.local
 
+import android.app.PendingIntent
 import android.content.ContentResolver
 import android.content.ContentUris
 import android.database.Cursor
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
+import androidx.core.os.bundleOf
 import com.pureframe.exif.data.model.Photo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+
+sealed class DeleteResult {
+    data class Success(val count: Int) : DeleteResult()
+    data class NeedsConsent(val pendingIntent: PendingIntent) : DeleteResult()
+}
 
 class MediaStoreDataSource(private val resolver: ContentResolver) {
 
@@ -84,8 +91,48 @@ class MediaStoreDataSource(private val resolver: ContentResolver) {
         }
     }
 
-    suspend fun delete(uri: android.net.Uri): Int = withContext(Dispatchers.IO) {
-        resolver.delete(uri, null, null)
+    /**
+     * Attempts to delete the given URIs.
+     *
+     * On API < 29 this performs a direct delete (WRITE_EXTERNAL_STORAGE is required).
+     * On API 29 it catches RecoverableSecurityException and returns the consent intent.
+     * On API 30+ it uses MediaStore.createDeleteRequest() so the system shows a
+     * confirmation dialog and handles the deletion itself.
+     */
+    suspend fun delete(uris: List<Uri>): DeleteResult = withContext(Dispatchers.IO) {
+        if (uris.isEmpty()) return@withContext DeleteResult.Success(0)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val pendingIntent = MediaStore.createDeleteRequest(resolver, uris)
+            DeleteResult.NeedsConsent(pendingIntent)
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            var deleted = 0
+            var consentIntent: PendingIntent? = null
+            for (uri in uris) {
+                try {
+                    val rows = resolver.delete(uri, null, null)
+                    if (rows > 0) deleted++
+                } catch (e: android.app.RecoverableSecurityException) {
+                    consentIntent = e.userAction.actionIntent
+                    break
+                } catch (_: Exception) {
+                    // skip
+                }
+            }
+            consentIntent?.let { DeleteResult.NeedsConsent(it) }
+                ?: DeleteResult.Success(deleted)
+        } else {
+            var deleted = 0
+            for (uri in uris) {
+                try {
+                    val rows = resolver.delete(uri, null, null)
+                    if (rows > 0) deleted++
+                } catch (_: Exception) {
+                    // skip
+                }
+            }
+            DeleteResult.Success(deleted)
+        }
     }
 
 
