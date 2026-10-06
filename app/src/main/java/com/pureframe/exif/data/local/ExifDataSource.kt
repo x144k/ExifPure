@@ -28,7 +28,13 @@ class ExifDataSource(private val resolver: ContentResolver) {
                 imageLength = exif.getAttributeInt(ExifInterface.TAG_IMAGE_LENGTH, 0).takeIf { it > 0 },
                 orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_UNDEFINED),
                 hasExif = exif.getAttribute(ExifInterface.TAG_MAKE) != null ||
-                        exif.getAttribute(ExifInterface.TAG_DATETIME_ORIGINAL) != null
+                        exif.getAttribute(ExifInterface.TAG_MODEL) != null ||
+                        exif.getAttribute(ExifInterface.TAG_DATETIME_ORIGINAL) != null ||
+                        exif.getAttribute(ExifInterface.TAG_GPS_LATITUDE) != null ||
+                        exif.getAttribute(ExifInterface.TAG_GPS_LONGITUDE) != null ||
+                        exif.getAttribute(ExifInterface.TAG_EXPOSURE_TIME) != null ||
+                        exif.getAttribute(ExifInterface.TAG_F_NUMBER) != null ||
+                        exif.getAttribute(ExifInterface.TAG_PHOTOGRAPHIC_SENSITIVITY) != null
             )
         } ?: ExifMetadata(
             null, null, null, null, null, null, null, null,

@@ -84,8 +84,8 @@ class MediaStoreDataSource(private val resolver: ContentResolver) {
         }
     }
 
-    fun delete(uri: android.net.Uri): Int {
-        return resolver.delete(uri, null, null)
+    suspend fun delete(uri: android.net.Uri): Int = withContext(Dispatchers.IO) {
+        resolver.delete(uri, null, null)
     }
 
 

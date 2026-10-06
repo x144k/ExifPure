@@ -9,8 +9,10 @@ import com.pureframe.exif.data.model.ExifMetadata
 import com.pureframe.exif.data.model.ExportLogEntry
 import com.pureframe.exif.data.model.Photo
 import com.pureframe.exif.data.model.StripMode
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.withContext
 import java.util.UUID
 
 class PhotoRepository(
@@ -66,7 +68,7 @@ class PhotoRepository(
 
     fun isFavorite(photoId: Long): Boolean = prefs.isFavorite(photoId)
 
-    suspend fun deletePhotos(photos: List<Photo>): Int {
+    suspend fun deletePhotos(photos: List<Photo>): Int = withContext(Dispatchers.IO) {
         var deleted = 0
         photos.forEach { photo ->
             try {
@@ -74,6 +76,6 @@ class PhotoRepository(
                 if (rows > 0) deleted++
             } catch (_: Exception) { }
         }
-        return deleted
+        deleted
     }
 }
