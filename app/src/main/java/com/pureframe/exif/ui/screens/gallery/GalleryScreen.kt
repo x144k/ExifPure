@@ -3,6 +3,7 @@ package com.pureframe.exif.ui.screens.gallery
 import android.Manifest
 import android.app.PendingIntent
 import android.content.pm.PackageManager
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.os.Build
 import android.view.HapticFeedbackConstants
@@ -95,6 +96,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.pureframe.exif.ExifPureApplication
 import com.pureframe.exif.data.local.EncryptedPreferenceStorage
+import com.pureframe.exif.data.local.ImageTooLargeException
 import com.pureframe.exif.data.model.Album
 import com.pureframe.exif.data.model.ExifSummary
 import com.pureframe.exif.data.model.Photo
@@ -467,27 +469,31 @@ class GalleryViewModel(private val repository: PhotoRepository) : ViewModel() {
     fun batchExportAndShare(mode: StripMode) {
         viewModelScope.launch {
             _batchProgress.value = true
-            val photos = _photos.value.filter { it.id in _selectedIds.value }
-            val results = repository.batchExport(photos, mode)
-            val success = results.count { it.isSuccess }
-            val failed = results.size - success
-            val uris = results.mapNotNull { it.getOrNull() }
-            val firstError = results.firstOrNull { it.isFailure }?.exceptionOrNull()?.message
-            val reason = when {
-                firstError.isNullOrEmpty() -> "File may be corrupted or unsupported"
-                firstError.contains("EOF", ignoreCase = true) -> "File appears corrupted or incomplete"
-                firstError.contains("Invalid JPEG", ignoreCase = true) -> "Unsupported or damaged image format"
-                firstError.contains("MediaStore", ignoreCase = true) -> "Unable to save to device storage"
-                else -> "File may be corrupted or unsupported"
+            try {
+                val photos = _photos.value.filter { it.id in _selectedIds.value }
+                val results = repository.batchExport(photos, mode)
+                val success = results.count { it.isSuccess }
+                val failed = results.size - success
+                val uris = results.mapNotNull { it.getOrNull() }
+                val firstException = results.firstOrNull { it.isFailure }?.exceptionOrNull()
+                val reason = when {
+                    firstException is ImageTooLargeException -> "Image exceeds 200 MB size limit"
+                    firstException == null -> "File may be corrupted or unsupported"
+                    firstException.message?.contains("EOF", ignoreCase = true) == true -> "File appears corrupted or incomplete"
+                    firstException.message?.contains("Invalid JPEG", ignoreCase = true) == true -> "Unsupported or damaged image format"
+                    firstException.message?.contains("MediaStore", ignoreCase = true) == true -> "Unable to save to device storage"
+                    else -> "File may be corrupted or unsupported"
+                }
+                _batchResult.value = when {
+                    success == 0 && failed > 0 -> "Export failed: $reason"
+                    success > 0 && failed > 0 -> "Exported $success, $failed failed: $reason"
+                    else -> "Exported $success clean copies"
+                }
+                _shareUris.value = uris
+            } finally {
+                _batchProgress.value = false
+                clearSelection()
             }
-            _batchResult.value = when {
-                success == 0 && failed > 0 -> "Export failed: $reason"
-                success > 0 && failed > 0 -> "Exported $success, $failed failed: $reason"
-                else -> "Exported $success clean copies"
-            }
-            _batchProgress.value = false
-            clearSelection()
-            _shareUris.value = uris
         }
     }
 
@@ -606,8 +612,15 @@ fun GalleryScreen(
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 }
             }
-            context.startActivity(Intent.createChooser(intent, "Share clean copies"))
-            viewModel.consumeShareUris()
+            val launched = try {
+                context.startActivity(Intent.createChooser(intent, "Share clean copies"))
+                true
+            } catch (_: ActivityNotFoundException) {
+                false
+            } catch (e: Exception) {
+                false
+            }
+            if (launched) viewModel.consumeShareUris()
         }
     }
 

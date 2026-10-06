@@ -31,8 +31,11 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -46,11 +49,17 @@ fun ShareProcessingScreen(
     viewModel: ShareViewModel,
     onFinish: () -> Unit
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    var shareError by rememberSaveable { mutableStateOf<String?>(null) }
 
+    // Only auto-start when the ViewModel is truly idle. After a config
+    // change the state may already be Success or Error; re-firing would
+    // restart processing without user action.
     LaunchedEffect(Unit) {
-        viewModel.startProcessing()
+        if (viewModel.uiState.value is ShareUiState.Idle) {
+            viewModel.startProcessing()
+        }
     }
 
     Box(
@@ -70,6 +79,7 @@ fun ShareProcessingScreen(
         ) {
             AnimatedContent(
                 targetState = uiState,
+                contentKey = { it::class.simpleName },
                 label = "share_state"
             ) { state ->
                 when (state) {
@@ -82,7 +92,9 @@ fun ShareProcessingScreen(
                     is ShareUiState.Success -> {
                         SuccessContent(
                             results = state.results,
+                            shareError = shareError,
                             onShare = { cleanUris ->
+                                shareError = null
                                 val intent = if (cleanUris.size == 1) {
                                     Intent(Intent.ACTION_SEND).apply {
                                         type = "image/*"
@@ -98,16 +110,30 @@ fun ShareProcessingScreen(
                                     }
                                 }
                                 intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                val chooser = Intent.createChooser(intent, "Share clean copy")
-                                context.startActivity(chooser)
+                                val chooser = Intent.createChooser(intent, "Share clean copy").apply {
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                try {
+                                    context.startActivity(chooser)
+                                } catch (_: android.content.ActivityNotFoundException) {
+                                    shareError = "No app available to share"
+                                } catch (e: Exception) {
+                                    shareError = "Unable to share right now"
+                                }
                             },
-                            onDone = onFinish
+                            onDone = {
+                                shareError = null
+                                onFinish()
+                            }
                         )
                     }
                     is ShareUiState.Error -> {
                         ErrorContent(
                             message = state.message,
-                            onRetry = { viewModel.startProcessing() },
+                            onRetry = {
+                                shareError = null
+                                viewModel.startProcessing()
+                            },
                             onCancel = onFinish
                         )
                     }
@@ -158,6 +184,7 @@ private fun ProcessingContent(current: Int, total: Int) {
 @Composable
 private fun SuccessContent(
     results: List<ShareResult>,
+    shareError: String?,
     onShare: (List<Uri>) -> Unit,
     onDone: () -> Unit
 ) {
@@ -175,19 +202,13 @@ private fun SuccessContent(
         ) {
             Icon(
                 imageVector = Icons.Default.CheckCircle,
-                contentDescription = null,
+                contentDescription = "Export succeeded",
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(28.dp)
             )
             Spacer(modifier = Modifier.width(12.dp))
             Column {
                 val firstError = results.firstOrNull { !it.success }?.error
-                val reason = when {
-                    firstError?.contains("EOF") == true -> "File appears corrupted or incomplete"
-                    firstError?.contains("Invalid JPEG") == true -> "Unsupported or damaged image format"
-                    firstError?.contains("MediaStore") == true -> "Unable to save to device storage"
-                    else -> "File may be corrupted or unsupported"
-                }
                 val title = when {
                     successCount == 1 && failedCount == 0 -> "Clean copy saved"
                     successCount == 0 && failedCount == 1 -> "Export failed"
@@ -200,7 +221,7 @@ private fun SuccessContent(
                 )
                 if (failedCount > 0) {
                     Text(
-                        text = reason,
+                        text = firstError ?: "Export failed",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error
                     )
@@ -228,6 +249,15 @@ private fun SuccessContent(
             ) {
                 Text("Share clean copies")
             }
+            if (shareError != null) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = shareError,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
             Spacer(modifier = Modifier.height(8.dp))
         }
 
@@ -250,7 +280,7 @@ private fun ResultRow(result: ShareResult) {
     ) {
         Icon(
             imageVector = if (result.success) Icons.Default.CheckCircle else Icons.Default.Error,
-            contentDescription = null,
+            contentDescription = if (result.success) "Export succeeded" else "Export failed",
             tint = if (result.success) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
             modifier = Modifier.size(18.dp)
         )
