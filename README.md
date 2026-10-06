@@ -35,20 +35,6 @@ A local-only, zero-permission-excess photo organizer for Android. Browse your ga
 
 ---
 
-## Architecture
-
-| Layer | Choice | Rationale |
-|-------|--------|-----------|
-| **UI** | Jetpack Compose + Material 3 | Single Activity, declarative, edge-to-edge |
-| **DI** | Manual `AppContainer` | Zero annotation processing overhead; compile-time safety |
-| **State** | `StateFlow` + ViewModel | Lifecycle-aware, testable, no external MVI lib |
-| **Images** | Coil | Lightweight; loads from `content://` URIs without network deps |
-| **EXIF** | `ExifInterface` (AndroidX) + Custom Stripper | Reads via framework; strips via custom lossless JPEG/PNG parser (zero native deps) |
-| **Prefs** | `EncryptedSharedPreferences` | `security-crypto` minSdk=23; AES-256 SIV/GCM |
-| **Storage** | MediaStore API | Scoped-storage compliant on API 29+; legacy path support on API 23-28 |
-
----
-
 ## Permissions
 
 | Permission | Usage |
