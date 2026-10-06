@@ -3,9 +3,12 @@ package com.pureframe.exif.data.local.stripper
 import android.content.ContentResolver
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
 import android.net.Uri
+import androidx.exifinterface.media.ExifInterface
 import com.pureframe.exif.data.local.ImageTooLargeException
 import com.pureframe.exif.data.local.MetadataStripper
+import java.io.BufferedInputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -44,20 +47,69 @@ object FallbackStripper {
                 }
             } ?: throw IllegalArgumentException("Could not read image")
 
-            val (width, height) = FileInputStream(temp).use { stream ->
-                val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                BitmapFactory.decodeStream(stream, null, options)
-                options.outWidth to options.outHeight
+            // Decode bounds and full bitmap from a single stream using mark/reset.
+            val bitmap = BufferedInputStream(FileInputStream(temp), DEFAULT_BUFFER_SIZE).use { stream ->
+                // Allow the buffer to grow up to 256 KiB so that images with
+                // large EXIF headers do not invalidate the mark before reset.
+                stream.mark(256 * 1024)
+
+                val boundsOptions = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                BitmapFactory.decodeStream(stream, null, boundsOptions)
+
+                val width = boundsOptions.outWidth
+                val height = boundsOptions.outHeight
+
+                val sampleSize = if (width > 0 && height > 0) {
+                    calculateInSampleSize(width, height, MAX_BITMAP_DIMENSION, MAX_BITMAP_DIMENSION)
+                } else 1
+
+                stream.reset()
+
+                val decodeOptions = BitmapFactory.Options().apply { inSampleSize = sampleSize }
+                BitmapFactory.decodeStream(stream, null, decodeOptions)
+            } ?: throw IllegalArgumentException("Could not decode image")
+
+            // Read orientation from the original source and apply it so the
+            // exported image matches the visual orientation of the original.
+            // If the source becomes unreadable between the temp copy and this
+            // read (e.g. user deletion), fall back to no rotation rather than
+            // failing the entire export.
+            val orientation = try {
+                contentResolver.openInputStream(uri)?.use { stream ->
+                    val exif = ExifInterface(stream)
+                    exif.getAttributeInt(
+                        ExifInterface.TAG_ORIENTATION,
+                        ExifInterface.ORIENTATION_NORMAL
+                    )
+                } ?: ExifInterface.ORIENTATION_NORMAL
+            } catch (_: Exception) {
+                ExifInterface.ORIENTATION_NORMAL
             }
 
-            val sampleSize = if (width > 0 && height > 0) {
-                calculateInSampleSize(width, height, MAX_BITMAP_DIMENSION, MAX_BITMAP_DIMENSION)
-            } else 1
+            val matrix = Matrix().apply {
+                when (orientation) {
+                    ExifInterface.ORIENTATION_ROTATE_90 -> postRotate(90f)
+                    ExifInterface.ORIENTATION_ROTATE_180 -> postRotate(180f)
+                    ExifInterface.ORIENTATION_ROTATE_270 -> postRotate(270f)
+                    ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> postScale(-1f, 1f)
+                    ExifInterface.ORIENTATION_FLIP_VERTICAL -> postScale(1f, -1f)
+                    ExifInterface.ORIENTATION_TRANSPOSE -> {
+                        postRotate(90f)
+                        postScale(-1f, 1f)
+                    }
+                    ExifInterface.ORIENTATION_TRANSVERSE -> {
+                        postRotate(270f)
+                        postScale(-1f, 1f)
+                    }
+                }
+            }
 
-            val bitmap = FileInputStream(temp).use { stream ->
-                val options = BitmapFactory.Options().apply { inSampleSize = sampleSize }
-                BitmapFactory.decodeStream(stream, null, options)
-            } ?: throw IllegalArgumentException("Could not decode image")
+            val rotatedBitmap = if (matrix.isIdentity) {
+                bitmap
+            } else {
+                Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+                    .also { bitmap.recycle() }
+            }
 
             val format = when {
                 mimeType?.equals("image/png", ignoreCase = true) == true -> Bitmap.CompressFormat.PNG
@@ -77,13 +129,13 @@ object FallbackStripper {
             // producing a truncated file. Recycle in finally so the bitmap is
             // always freed even if the OutputStream throws during compression.
             try {
-                if (!bitmap.compress(format, quality, output)) {
+                if (!rotatedBitmap.compress(format, quality, output)) {
                     throw IOException("Bitmap compression failed")
                 }
             } finally {
                 // Native bitmap memory is not reclaimed until GC on API < 30.
                 // Explicitly recycle to prevent native OOM during batch exports.
-                bitmap.recycle()
+                rotatedBitmap.recycle()
             }
         } finally {
             if (!temp.delete()) {

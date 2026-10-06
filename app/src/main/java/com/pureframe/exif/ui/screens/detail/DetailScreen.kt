@@ -76,6 +76,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.util.concurrent.atomic.AtomicBoolean
 import java.text.SimpleDateFormat
@@ -149,19 +151,30 @@ class DetailViewModel(
     private val _isFavorite = MutableStateFlow(false)
     val isFavorite: StateFlow<Boolean> = _isFavorite.asStateFlow()
 
-    // Preference delegates
-    /** Default strip mode from preferences (ALL or GPS_ONLY). */
-    val defaultStripMode: StripMode
-        get() = if (repository.prefs.defaultStripMode == EncryptedPreferenceStorage.STRIP_GPS)
-            StripMode.GPS_ONLY else StripMode.ALL
+    // Preference delegates (cached in memory; persisted values loaded in init)
+    private var _defaultStripMode = StripMode.ALL
+    val defaultStripMode: StripMode get() = _defaultStripMode
 
-    /** Whether haptic feedback is enabled in settings. */
-    val hapticEnabled: Boolean
-        get() = repository.prefs.hapticEnabled
+    private var _hapticEnabled = true
+    val hapticEnabled: Boolean get() = _hapticEnabled
+
+    // Serialize favorite read-modify-write so async init and user toggles
+    // cannot interleave and overwrite each other.
+    private val favoriteMutex = Mutex()
 
     init {
         load()
-        _isFavorite.value = repository.isFavorite(photoId)
+        viewModelScope.launch(Dispatchers.IO) {
+            favoriteMutex.withLock {
+                _isFavorite.value = repository.isFavorite(photoId)
+            }
+            _defaultStripMode = if (repository.getDefaultStripMode() == EncryptedPreferenceStorage.STRIP_GPS) {
+                StripMode.GPS_ONLY
+            } else {
+                StripMode.ALL
+            }
+            _hapticEnabled = repository.getHapticEnabled()
+        }
     }
 
     /**
@@ -180,8 +193,12 @@ class DetailViewModel(
 
     /** Toggles the favorite status of this photo. */
     fun toggleFavorite() {
-        repository.toggleFavorite(photoId)
-        _isFavorite.value = repository.isFavorite(photoId)
+        viewModelScope.launch(Dispatchers.IO) {
+            favoriteMutex.withLock {
+                repository.toggleFavorite(photoId)
+                _isFavorite.value = repository.isFavorite(photoId)
+            }
+        }
     }
 
     /**
