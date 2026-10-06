@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -100,7 +101,7 @@ fun AppLockScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF0D7377)),
+            .background(MaterialTheme.colorScheme.primary),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -140,7 +141,7 @@ fun AppLockScreen(
                 LockStatus.NoHardware -> {
                     Text(
                         "No biometric hardware enrolled",
-                        color = Color(0xFFFF8A80),
+                        color = MaterialTheme.colorScheme.error,
                         fontSize = 14.sp
                     )
                     Button(onClick = {
@@ -153,7 +154,7 @@ fun AppLockScreen(
                 LockStatus.Cancelled -> {
                     Text(
                         "Authentication cancelled",
-                        color = Color(0xFFFF8A80),
+                        color = MaterialTheme.colorScheme.error,
                         fontSize = 14.sp
                     )
                     Button(onClick = { launchPrompt() }) {
@@ -163,7 +164,7 @@ fun AppLockScreen(
                 is LockStatus.Error -> {
                     Text(
                         (status as LockStatus.Error).message,
-                        color = Color(0xFFFF8A80),
+                        color = MaterialTheme.colorScheme.error,
                         fontSize = 14.sp
                     )
                     Button(onClick = { launchPrompt() }) {
