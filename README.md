@@ -23,7 +23,7 @@ A local-only, zero-permission-excess photo organizer for Android. Browse your ga
 | Feature | Description |
 |---------|-------------|
 | **Gallery Browser** | Browse all device photos and albums via MediaStore. Sort by date, name, or size. |
-| **Photo Detail View** | Full-screen preview with a complete EXIF metadata table, strip mode selection, one-tap export, and a before/after comparison card. |
+| **Photo Detail View** | Full-screen preview with a complete EXIF metadata table, strip mode selection, one-tap export, and a post-export metadata comparison card. |
 | **EXIF Inspector** | View camera make/model, lens, exposure, ISO, focal length, GPS coordinates, and orientation. |
 | **Lossless Metadata Stripper** | JPEG and PNG are rewritten segment-by-segment with zero re-compression. WEBP/HEIF fall back to high-quality re-encode. |
 | **Strip Modes** | `All Metadata` removes everything. `GPS Only` removes only location data while preserving camera info. |
@@ -115,11 +115,10 @@ Additional inspiration for privacy-focused editing tools comes from [ImageToolbo
 - **Privacy Watermark** - Add a subtle text or timestamp watermark to exported images (e.g., "Shared via EXIF Pure - 2026-05-10"). Not for branding; for traceability and leak detection.
 - **Search by EXIF Field** - Find photos by camera model, GPS presence, date range, and more.
 - **Resize on export** - Set a maximum image size so large photos are scaled down before saving or sharing.
-- **Quick Crop & Rotate** - Simple pre-export cropping and rotation. Bake the orientation into the image so it displays correctly everywhere, without modifying the original.
+- **Quick Crop & Rotate** - Simple pre-export cropping and rotation, plus one-tap auto-straighten for sideways photos. Bake the orientation into the image so it displays correctly everywhere, without modifying the original.
 - **Convert format on export** - Save clean copies as JPEG, PNG, or WebP instead of keeping the original file format.
 - **In-app EXIF editor** - Edit specific metadata fields, such as adding copyright or correcting the date taken, instead of only removing data.
 - **Choose what metadata to keep** - Preserve selected information, like copyright or camera model, while stripping everything else.
-- **Fix sideways photos on export** - Ensure photos display correctly in every app by baking rotation into the image itself during conversion or resize.
 - **Duplicate detection** - Find visually similar or exact-duplicate photos to help clean up storage.
 - **Privacy Redaction Tool** - Blur or pixelate faces, license plates, text, or any sensitive region before exporting. A privacy-first markup layer that redacts rather than decorates.
 - **HEIC/HEIF lossless stripping** - Strip metadata from HEIC/HEIF images without quality loss. Experimental.
@@ -128,13 +127,7 @@ Additional inspiration for privacy-focused editing tools comes from [ImageToolbo
 
 ## Contributing
 
-Contributions are welcome. Please open an issue first to discuss significant changes.
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+This project is maintained by a single developer. If you have a bug report or a small fix, open an issue or pull request directly. For significant changes, please open an issue first to discuss the approach.
 
 ---
 
