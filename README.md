@@ -112,10 +112,9 @@ For a signed release build:
 
 - [x] **Folder/album view**; group photos by bucket/album instead of a flat grid.
 - [x] **Dark theme enforcement**; force dark mode independently of system setting.
-- [ ] **Widget**; home screen widget showing a random favorite photo.
-- [ ] **Duplicate detection**; find visually similar or exact-duplicate photos to help clean up storage.
 - [ ] **Auto-export on share**; intercept system share intents to automatically strip metadata when sharing from other apps.
 - [ ] **In-app EXIF editor**; modify specific fields (e.g., add copyright, correct date) instead of only stripping.
+- [ ] **Duplicate detection**; find visually similar or exact-duplicate photos to help clean up storage.
 - [ ] **HEIC/HEIF lossless stripping**; extend the custom segment parser to handle HEIC containers without bitmap re-encode. Experimental; may require HEVC NAL scanning for embedded SEI metadata.
 
 ---
