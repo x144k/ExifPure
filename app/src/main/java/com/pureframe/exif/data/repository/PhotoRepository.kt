@@ -9,6 +9,7 @@ import com.pureframe.exif.data.model.ExifMetadata
 import com.pureframe.exif.data.model.ExportLogEntry
 import com.pureframe.exif.data.model.Photo
 import com.pureframe.exif.data.model.StripMode
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -74,7 +75,10 @@ class PhotoRepository(
             try {
                 val rows = mediaStore.delete(photo.uri)
                 if (rows > 0) deleted++
-            } catch (_: Exception) { }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                // Skip silently; individual photo deletion failures are non-critical
+            }
         }
         deleted
     }

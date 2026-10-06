@@ -1,6 +1,7 @@
 package com.pureframe.exif
 
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -36,6 +37,7 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
 
         val container = (application as ExifPureApplication).container
 
@@ -48,7 +50,7 @@ class MainActivity : FragmentActivity() {
                     else -> isSystemInDarkTheme()
                 }
                 ExifPureTheme(darkTheme = darkTheme) {
-                    var showFlare by remember { mutableStateOf(true) }
+                    var showFlare by rememberSaveable { mutableStateOf(true) }
                     var isLocked by rememberSaveable { mutableStateOf(container.prefs.appLockEnabled) }
                     val navController = rememberNavController()
 
@@ -76,10 +78,14 @@ class MainActivity : FragmentActivity() {
                             composable(Screen.Gallery.route) {
                                 GalleryScreen(
                                     onPhotoClick = { photo ->
-                                        navController.navigate(Screen.Detail.createRoute(photo.id))
+                                        navController.navigate(Screen.Detail.createRoute(photo.id)) {
+                                            launchSingleTop = true
+                                        }
                                     },
                                     onSettingsClick = {
-                                        navController.navigate(Screen.Settings.route)
+                                        navController.navigate(Screen.Settings.route) {
+                                            launchSingleTop = true
+                                        }
                                     }
                                 )
                             }
@@ -90,7 +96,9 @@ class MainActivity : FragmentActivity() {
                                         photoId = id,
                                         onBack = { navController.popBackStack() },
                                         onImageClick = {
-                                            navController.navigate(Screen.Viewer.createRoute(id))
+                                            navController.navigate(Screen.Viewer.createRoute(id)) {
+                                                launchSingleTop = true
+                                            }
                                         }
                                     )
                                 }
@@ -110,7 +118,11 @@ class MainActivity : FragmentActivity() {
                             composable(Screen.Settings.route) {
                                 SettingsScreen(
                                     onBack = { navController.popBackStack() },
-                                    onHistoryClick = { navController.navigate(Screen.History.route) }
+                                    onHistoryClick = {
+                                        navController.navigate(Screen.History.route) {
+                                            launchSingleTop = true
+                                        }
+                                    }
                                 )
                             }
                         }
