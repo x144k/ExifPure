@@ -97,10 +97,16 @@ object JpegStripper {
      */
     private fun readMarker(reader: BufferedInputStream): Int {
         while (true) {
-            if (reader.read() != 0xFF) continue
+            val b = reader.read()
+            if (b == -1) throw IllegalStateException("Unexpected EOF while reading JPEG marker")
+            if (b != 0xFF) continue
             var m = reader.read()
-            while (m == 0xFF) m = reader.read() // Skip padding
-            if (m != 0x00) return m             // 0xFF00 is not a marker
+            if (m == -1) throw IllegalStateException("Unexpected EOF while reading JPEG marker")
+            while (m == 0xFF) {
+                m = reader.read()
+                if (m == -1) throw IllegalStateException("Unexpected EOF while reading JPEG marker")
+            }
+            if (m != 0x00) return m
         }
     }
 

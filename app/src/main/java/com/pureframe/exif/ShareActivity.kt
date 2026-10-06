@@ -8,9 +8,12 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModelProvider
 import com.pureframe.exif.data.local.EncryptedPreferenceStorage
-import com.pureframe.exif.data.repository.PhotoRepository
+import com.pureframe.exif.ui.screens.lock.AppLockScreen
 import com.pureframe.exif.ui.screens.share.ShareProcessingScreen
 import com.pureframe.exif.ui.screens.share.ShareViewModel
 import com.pureframe.exif.ui.theme.ExifPureTheme
@@ -39,6 +42,7 @@ class ShareActivity : androidx.fragment.app.FragmentActivity() {
         )[ShareViewModel::class.java]
 
         setContent {
+            var isLocked by rememberSaveable { mutableStateOf(container.prefs.appLockEnabled) }
             val themeMode by container.themeModeFlow.collectAsState()
             val darkTheme = when (themeMode) {
                 EncryptedPreferenceStorage.VALUE_DARK -> true
@@ -46,10 +50,14 @@ class ShareActivity : androidx.fragment.app.FragmentActivity() {
                 else -> isSystemInDarkTheme()
             }
             ExifPureTheme(darkTheme = darkTheme) {
-                ShareProcessingScreen(
-                    viewModel = viewModel,
-                    onFinish = { finish() }
-                )
+                if (isLocked) {
+                    AppLockScreen(onUnlock = { isLocked = false })
+                } else {
+                    ShareProcessingScreen(
+                        viewModel = viewModel,
+                        onFinish = { finish() }
+                    )
+                }
             }
         }
     }

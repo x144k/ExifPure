@@ -11,6 +11,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
@@ -48,11 +49,11 @@ class MainActivity : FragmentActivity() {
                 }
                 ExifPureTheme(darkTheme = darkTheme) {
                     var showFlare by remember { mutableStateOf(true) }
-                    var isLocked by remember { mutableStateOf(container.prefs.appLockEnabled) }
+                    var isLocked by rememberSaveable { mutableStateOf(container.prefs.appLockEnabled) }
                     val navController = rememberNavController()
 
                     val lifecycleOwner = LocalLifecycleOwner.current
-                    var hasHandledFirstResume by remember { mutableStateOf(false) }
+                    var hasHandledFirstResume by rememberSaveable { mutableStateOf(false) }
                     DisposableEffect(lifecycleOwner) {
                         val observer = LifecycleEventObserver { _, event ->
                             if (event == Lifecycle.Event.ON_RESUME) {
