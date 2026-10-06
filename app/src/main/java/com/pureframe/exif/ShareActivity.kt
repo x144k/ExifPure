@@ -9,6 +9,7 @@ import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -29,10 +30,17 @@ import kotlinx.coroutines.launch
 
 class ShareActivity : androidx.fragment.app.FragmentActivity() {
 
+    // Same background detection pattern as MainActivity:
+    // ON_PAUSE is more reliable than ON_STOP for detecting genuine backgrounding
+    // on API < 28 and during split-screen transitions.
+    private var wasBackgrounded = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+
+        wasBackgrounded = savedInstanceState?.getBoolean("was_bg", false) ?: false
 
         val container = (application as ExifPureApplication).container
         val uris = extractUrisFromIntent(intent)
@@ -139,14 +147,22 @@ class ShareActivity : androidx.fragment.app.FragmentActivity() {
             }
 
             val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-            var hasHandledFirstResume by rememberSaveable { mutableStateOf(false) }
-            androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+            DisposableEffect(lifecycleOwner) {
                 val observer = LifecycleEventObserver { _, event ->
-                    if (event == Lifecycle.Event.ON_RESUME) {
-                        if (hasHandledFirstResume && container.prefs.appLockEnabled) {
-                            isLocked = true
+                    when (event) {
+                        Lifecycle.Event.ON_PAUSE -> {
+                            val activity = lifecycleOwner as? android.app.Activity
+                            if (activity?.isChangingConfigurations != true) {
+                                wasBackgrounded = true
+                            }
                         }
-                        hasHandledFirstResume = true
+                        Lifecycle.Event.ON_RESUME -> {
+                            if (wasBackgrounded && container.prefs.appLockEnabled) {
+                                isLocked = true
+                            }
+                            wasBackgrounded = false
+                        }
+                        else -> { /* no-op */ }
                     }
                 }
                 lifecycleOwner.lifecycle.addObserver(observer)
@@ -164,6 +180,11 @@ class ShareActivity : androidx.fragment.app.FragmentActivity() {
                 }
             }
         }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putBoolean("was_bg", wasBackgrounded)
     }
 
     @Suppress("DEPRECATION")

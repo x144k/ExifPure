@@ -34,10 +34,17 @@ import com.pureframe.exif.ui.theme.ExifPureTheme
 
 class MainActivity : FragmentActivity() {
 
+    // Set to true when the activity enters the background (not just config change).
+    // Used to trigger the lock screen on resume without relying on ON_STOP,
+    // which is unreliable on API < 28 and during split-screen transitions.
+    private var wasBackgrounded = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+
+        wasBackgrounded = savedInstanceState?.getBoolean("was_bg", false) ?: false
 
         val container = (application as ExifPureApplication).container
 
@@ -55,14 +62,28 @@ class MainActivity : FragmentActivity() {
                     val navController = rememberNavController()
 
                     val lifecycleOwner = LocalLifecycleOwner.current
-                    var hasHandledFirstResume by rememberSaveable { mutableStateOf(false) }
+                    // Lock on resume only if the app was genuinely backgrounded.
+                    // ON_PAUSE is used instead of ON_STOP because ON_STOP may be
+                    // delayed or skipped on older Android versions and in multi-window.
                     DisposableEffect(lifecycleOwner) {
                         val observer = LifecycleEventObserver { _, event ->
-                            if (event == Lifecycle.Event.ON_RESUME) {
-                                if (hasHandledFirstResume && container.prefs.appLockEnabled) {
-                                    isLocked = true
+                            when (event) {
+                                Lifecycle.Event.ON_PAUSE -> {
+                                    val activity = lifecycleOwner as? android.app.Activity
+                                    // Do not treat rotation or resize as backgrounding.
+                                    if (activity?.isChangingConfigurations != true) {
+                                        wasBackgrounded = true
+                                    }
                                 }
-                                hasHandledFirstResume = true
+                                Lifecycle.Event.ON_RESUME -> {
+                                    if (wasBackgrounded && container.prefs.appLockEnabled) {
+                                        isLocked = true
+                                    }
+                                    // Always reset so a later resume without backgrounding
+                                    // does not incorrectly lock (e.g. after disabling lock).
+                                    wasBackgrounded = false
+                                }
+                                else -> { /* no-op */ }
                             }
                         }
                         lifecycleOwner.lifecycle.addObserver(observer)
@@ -130,5 +151,10 @@ class MainActivity : FragmentActivity() {
                 }
             }
         }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putBoolean("was_bg", wasBackgrounded)
     }
 }
