@@ -96,6 +96,7 @@ fun SettingsScreen(
             Card(modifier = Modifier.padding(16.dp)) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Default Strip Mode", style = MaterialTheme.typography.titleMedium)
+                    Text("Applies to all exports and shares unless you change it for a specific photo", style = MaterialTheme.typography.bodySmall)
                     Spacer(Modifier.height(8.dp))
                     ThemeRow("Remove All Metadata", EncryptedPreferenceStorage.STRIP_ALL, defaultStrip) { defaultStrip = it; prefs.defaultStripMode = it }
                     ThemeRow("Remove GPS Only", EncryptedPreferenceStorage.STRIP_GPS, defaultStrip) { defaultStrip = it; prefs.defaultStripMode = it }
@@ -117,11 +118,12 @@ fun SettingsScreen(
             Card(modifier = Modifier.padding(16.dp)) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Export Directory", style = MaterialTheme.typography.titleMedium)
+                    Text("Clean copies are saved inside Pictures/ on your device", style = MaterialTheme.typography.bodySmall)
                     Spacer(Modifier.height(8.dp))
                     OutlinedTextField(
                         value = outputDir,
                         onValueChange = { outputDir = it },
-                        label = { Text("Subdirectory under Pictures/") },
+                        label = { Text("Subdirectory name") },
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(Modifier.height(8.dp))
