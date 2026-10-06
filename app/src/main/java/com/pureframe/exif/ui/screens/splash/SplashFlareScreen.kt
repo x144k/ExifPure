@@ -9,8 +9,11 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -160,97 +163,195 @@ fun SplashFlareScreen(
         onFinished()
     }
 
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(
                     colors = listOf(tealDark, tealMid, tealLight)
                 )
-            ),
-        contentAlignment = Alignment.Center
+            )
     ) {
-        Box(
-            modifier = Modifier.size(260.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            PhotoCard(
-                modifier = Modifier
-                    .offset(
-                        x = card1OffsetX.value.dp,
-                        y = (card1OffsetY.value - 8f + float1.value * 4f).dp
-                    )
-                    .rotate(card1Rotate.value)
-                    .scale(card1Scale.value)
-                    .alpha(card1Alpha.value),
-                color = Color(0xFFE8F5E9),
-                innerColor = Color(0xFF81C784),
-                shape = RoundedCornerShape(10.dp)
-            )
-
-            PhotoCard(
-                modifier = Modifier
-                    .offset(
-                        x = (card2OffsetX.value + 20f).dp,
-                        y = (card2OffsetY.value - 12f + float2.value * 5f).dp
-                    )
-                    .rotate(card2Rotate.value)
-                    .scale(card2Scale.value)
-                    .alpha(card2Alpha.value),
-                color = Color(0xFFFFF3E0),
-                innerColor = Color(0xFFFFB74D),
-                shape = RoundedCornerShape(12.dp)
-            )
-
-            PhotoCard(
-                modifier = Modifier
-                    .offset(
-                        x = (card3OffsetX.value - 10f).dp,
-                        y = (card3OffsetY.value + 10f + float3.value * 3f).dp
-                    )
-                    .rotate(card3Rotate.value)
-                    .scale(card3Scale.value)
-                    .alpha(card3Alpha.value),
-                color = Color(0xFFE3F2FD),
-                innerColor = Color(0xFF64B5F6),
-                shape = RoundedCornerShape(14.dp)
-            )
-        }
-
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 140.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
+        if (maxHeight >= 550.dp) {
             Box(
-                modifier = Modifier
-                    .size(width = (40f * dividerScale.value).dp, height = 2.dp)
-                    .background(Color.White.copy(alpha = 0.6f), RoundedCornerShape(1.dp))
-            )
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier.size(260.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    PhotoCard(
+                        modifier = Modifier
+                            .offset(
+                                x = card1OffsetX.value.dp,
+                                y = (card1OffsetY.value - 8f + float1.value * 4f).dp
+                            )
+                            .rotate(card1Rotate.value)
+                            .scale(card1Scale.value)
+                            .alpha(card1Alpha.value),
+                        color = Color(0xFFE8F5E9),
+                        innerColor = Color(0xFF81C784),
+                        shape = RoundedCornerShape(10.dp)
+                    )
 
-            Text(
-                text = "EXIF Pure",
-                color = Color.White,
-                fontSize = 36.sp,
-                fontWeight = FontWeight.Light,
-                letterSpacing = 3.sp,
-                modifier = Modifier
-                    .alpha(textAlpha.value)
-                    .offset(y = textOffset.value.dp)
-            )
+                    PhotoCard(
+                        modifier = Modifier
+                            .offset(
+                                x = (card2OffsetX.value + 20f).dp,
+                                y = (card2OffsetY.value - 12f + float2.value * 5f).dp
+                            )
+                            .rotate(card2Rotate.value)
+                            .scale(card2Scale.value)
+                            .alpha(card2Alpha.value),
+                        color = Color(0xFFFFF3E0),
+                        innerColor = Color(0xFFFFB74D),
+                        shape = RoundedCornerShape(12.dp)
+                    )
 
-            Text(
-                text = "Your photos. Your privacy.",
-                color = Color.White.copy(alpha = 0.85f),
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Normal,
-                letterSpacing = 2.sp,
-                modifier = Modifier
-                    .alpha(taglineAlpha.value)
-                    .offset(y = (textOffset.value * 0.5f).dp)
-            )
+                    PhotoCard(
+                        modifier = Modifier
+                            .offset(
+                                x = (card3OffsetX.value - 10f).dp,
+                                y = (card3OffsetY.value + 10f + float3.value * 3f).dp
+                            )
+                            .rotate(card3Rotate.value)
+                            .scale(card3Scale.value)
+                            .alpha(card3Alpha.value),
+                        color = Color(0xFFE3F2FD),
+                        innerColor = Color(0xFF64B5F6),
+                        shape = RoundedCornerShape(14.dp)
+                    )
+                }
+
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 140.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(width = (40f * dividerScale.value).dp, height = 2.dp)
+                            .background(Color.White.copy(alpha = 0.6f), RoundedCornerShape(1.dp))
+                    )
+
+                    Text(
+                        text = "EXIF Pure",
+                        color = Color.White,
+                        fontSize = 36.sp,
+                        fontWeight = FontWeight.Light,
+                        letterSpacing = 3.sp,
+                        modifier = Modifier
+                            .alpha(textAlpha.value)
+                            .offset(y = textOffset.value.dp)
+                    )
+
+                    Text(
+                        text = "Your photos. Your privacy.",
+                        color = Color.White.copy(alpha = 0.85f),
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Normal,
+                        letterSpacing = 2.sp,
+                        modifier = Modifier
+                            .alpha(taglineAlpha.value)
+                            .offset(y = (textOffset.value * 0.5f).dp)
+                    )
+                }
+            }
+        } else {
+            val boxSize = (maxHeight * 0.45f).coerceAtMost(260.dp).coerceAtLeast(140.dp)
+
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Spacer(modifier = Modifier.weight(1f))
+
+                Box(
+                    modifier = Modifier.size(boxSize),
+                    contentAlignment = Alignment.Center
+                ) {
+                    PhotoCard(
+                        modifier = Modifier
+                            .offset(
+                                x = card1OffsetX.value.dp,
+                                y = (card1OffsetY.value - 8f + float1.value * 4f).dp
+                            )
+                            .rotate(card1Rotate.value)
+                            .scale(card1Scale.value)
+                            .alpha(card1Alpha.value),
+                        color = Color(0xFFE8F5E9),
+                        innerColor = Color(0xFF81C784),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+
+                    PhotoCard(
+                        modifier = Modifier
+                            .offset(
+                                x = (card2OffsetX.value + 20f).dp,
+                                y = (card2OffsetY.value - 12f + float2.value * 5f).dp
+                            )
+                            .rotate(card2Rotate.value)
+                            .scale(card2Scale.value)
+                            .alpha(card2Alpha.value),
+                        color = Color(0xFFFFF3E0),
+                        innerColor = Color(0xFFFFB74D),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    PhotoCard(
+                        modifier = Modifier
+                            .offset(
+                                x = (card3OffsetX.value - 10f).dp,
+                                y = (card3OffsetY.value + 10f + float3.value * 3f).dp
+                            )
+                            .rotate(card3Rotate.value)
+                            .scale(card3Scale.value)
+                            .alpha(card3Alpha.value),
+                        color = Color(0xFFE3F2FD),
+                        innerColor = Color(0xFF64B5F6),
+                        shape = RoundedCornerShape(14.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Column(
+                    modifier = Modifier.padding(bottom = 48.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(width = (40f * dividerScale.value).dp, height = 2.dp)
+                            .background(Color.White.copy(alpha = 0.6f), RoundedCornerShape(1.dp))
+                    )
+
+                    Text(
+                        text = "EXIF Pure",
+                        color = Color.White,
+                        fontSize = 36.sp,
+                        fontWeight = FontWeight.Light,
+                        letterSpacing = 3.sp,
+                        modifier = Modifier
+                            .alpha(textAlpha.value)
+                            .offset(y = textOffset.value.dp)
+                    )
+
+                    Text(
+                        text = "Your photos. Your privacy.",
+                        color = Color.White.copy(alpha = 0.85f),
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Normal,
+                        letterSpacing = 2.sp,
+                        modifier = Modifier
+                            .alpha(taglineAlpha.value)
+                            .offset(y = (textOffset.value * 0.5f).dp)
+                    )
+                }
+            }
         }
     }
 }

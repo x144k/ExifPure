@@ -17,6 +17,7 @@
 
         <activity
             android:name=".MainActivity"
+            android:configChanges="orientation|screenSize|smallestScreenSize"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -27,6 +28,7 @@
         <activity
             android:name=".ShareActivity"
             android:theme="@style/Theme.ExifPure.Share"
+            android:configChanges="orientation|screenSize|smallestScreenSize"
             android:exported="true"
             android:excludeFromRecents="true">
             <intent-filter>
