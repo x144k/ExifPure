@@ -1,0 +1,38 @@
+name: "CodeQL"
+
+# Automated SAST. Runs on every push/PR to main and weekly on a quiet cron
+# (Mon 04:35 UTC) so new regressions surface without blocking work.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "35 4 * * 1"
+
+permissions:
+  contents: read
+  actions: read
+  security-events: write
+
+jobs:
+  analyze:
+    name: CodeQL Analyze
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: kotlin
+          config-file: .github/codeql-config.yml
+          build-mode: auto
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v3
+        with:
+          output: security-events
+          fail-on: error
