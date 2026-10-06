@@ -1,0 +1,23 @@
+name: "CodeQL Security Config"
+
+# Kotlin source (ExifPure + the two Android apps: Info, Camera).
+# Exclude build artifacts, generated code, tests and binary assets so runs
+# stay fast and findings focus on real source.
+languages: kotlin
+
+paths:
+  - .
+
+exclude_paths:
+  - "**/build/**"
+  - "**/generated/**"
+  - "**/test/**"
+  - "**/androidTest/**"
+  - "**/assets/**"
+  - "**/res/**"
+  - "**/*.md"
+  - "**/*.png"
+  - "**/*.webp"
+  - "**/*.jpg"
+  - "**/*.jpeg"
+  - "**/*.ogg"
