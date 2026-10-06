@@ -11,6 +11,22 @@
     <string name="share_error_unsupported">Unable to read this image. It may be in an unsupported format.</string>
     <string name="share_error_storage">Unable to save the cleaned image</string>
 
+    <!-- Lock -->
+    <string name="lock_title">Unlock EXIF Pure</string>
+    <string name="lock_subtitle">Verify your identity</string>
+    <string name="lock_cancel">Cancel</string>
+    <string name="lock_required">Authentication required</string>
+    <string name="lock_biometric_icon">Biometric</string>
+    <string name="lock_no_hardware">No biometric hardware enrolled</string>
+    <string name="lock_cancelled">Authentication cancelled</string>
+    <string name="lock_retry">Retry</string>
+    <string name="lock_too_many_attempts">Too many failed attempts. Please restart the app.</string>
+    <string name="lock_activity_required">Activity context required</string>
+    <string name="lock_verify_to_change">Verify your identity to change lock settings</string>
+    <string name="lock_auth_failed">Authentication failed. Setting not changed.</string>
+    <string name="lock_no_strong_biometric">Strong biometric authentication is not available on this device.</string>
+    <string name="lock_disable">Disable Lock</string>
+
     <!-- Settings -->
     <string name="settings_title">Settings</string>
     <string name="back">Back</string>
@@ -43,16 +59,27 @@
     <string name="settings_save_location_desc">Clean copies are saved inside Pictures/ on your device</string>
     <string name="settings_subdir_name">Subdirectory name</string>
     <string name="save">Save</string>
+    <string name="settings_save_location_confirmed">Save location saved</string>
     <string name="settings_fallback_quality">Fallback Export Quality</string>
     <string name="settings_fallback_quality_desc">For WEBP/HEIF formats that require re-encoding</string>
     <string name="settings_history">History</string>
     <string name="settings_view_history">View Export History</string>
     <string name="settings_security">Security</string>
+    <string name="settings_biometric_lock">Biometric Lock</string>
+    <string name="settings_biometric_lock_desc">Require fingerprint/face to open</string>
     <string name="settings_data">Data</string>
     <string name="settings_clear_favorites">Clear All Favorites</string>
     <string name="settings_about">About</string>
     <string name="about_tagline">Privacy-first local photo organizer</string>
     <string name="about_privacy">No accounts. No ads. No tracking. All data stays on your device.</string>
+    <string name="viewer_title">Viewer</string>
+
+    <!-- History -->
+    <string name="history_title">Export History</string>
+    <string name="history_clear">Clear history</string>
+    <string name="history_empty">No exports yet</string>
+    <string name="history_empty_desc">Clean copies you export will appear here</string>
+    <string name="history_from">From: %1$s</string>
 
     <!-- Settings misc -->
     <string name="settings_quality_percent">%1$d%%</string>
