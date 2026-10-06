@@ -3,7 +3,9 @@ package com.pureframe.exif
 import android.content.ClipData
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.compose.setContent
@@ -19,6 +21,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import com.pureframe.exif.data.local.EncryptedPreferenceStorage
 import com.pureframe.exif.di.AppContainer
 import com.pureframe.exif.ui.screens.lock.AppLockScreen
@@ -35,6 +38,8 @@ class ShareActivity : androidx.fragment.app.FragmentActivity() {
     // on API < 28 and during split-screen transitions.
     private var wasBackgrounded = false
     private var lastPauseTime = 0L
+    // Prevents silent-path chooser/Toast from re-firing on every config change.
+    private var silentResultHandled = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -42,6 +47,8 @@ class ShareActivity : androidx.fragment.app.FragmentActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
 
         wasBackgrounded = savedInstanceState?.getBoolean("was_bg", false) ?: false
+        silentResultHandled = savedInstanceState?.getBoolean("silent_handled", false) ?: false
+        lastPauseTime = savedInstanceState?.getLong("last_pause", 0L) ?: 0L
 
         val container = (application as ExifPureApplication).container
         val uris = extractUrisFromIntent(intent)
@@ -56,7 +63,9 @@ class ShareActivity : androidx.fragment.app.FragmentActivity() {
             this,
             ShareViewModel.Factory(
                 repository = container.repository,
-                resolver = contentResolver,
+                // Use the application resolver to avoid leaking the Activity
+                // across configuration changes.
+                resolver = applicationContext.contentResolver,
                 uris = uris
             )
         )[ShareViewModel::class.java]
@@ -71,67 +80,92 @@ class ShareActivity : androidx.fragment.app.FragmentActivity() {
     }
 
     private fun handleSilentPath(viewModel: ShareViewModel) {
+        if (silentResultHandled) {
+            if (!isFinishing) finish()
+            return
+        }
         lifecycleScope.launch {
-            viewModel.uiState.collect { state ->
-                when (state) {
-                    is ShareUiState.Success -> {
-                        val cleanUris = state.results.mapNotNull { it.cleanUri }
-                        if (cleanUris.isNotEmpty()) {
-                            Toast.makeText(
-                                this@ShareActivity,
-                                getString(R.string.share_metadata_stripped),
-                                Toast.LENGTH_SHORT
-                            ).show()
-                            val intent = Intent(Intent.ACTION_SEND).apply {
-                                type = "image/*"
-                                putExtra(Intent.EXTRA_STREAM, cleanUris.first())
-                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            // Collect only while the activity is started so the coroutine does
+            // not hold the activity alive while backgrounded.
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.uiState.collect { state ->
+                    when (state) {
+                        is ShareUiState.Success -> {
+                            if (silentResultHandled) {
+                                if (!isFinishing) finish()
+                                return@collect
                             }
-                            val chooser = Intent.createChooser(
-                                intent,
-                                getString(R.string.share_clean_copy)
-                            ).apply {
-                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                            }
-                            try {
-                                startActivity(chooser)
-                            } catch (_: android.content.ActivityNotFoundException) {
+                            silentResultHandled = true
+                            val cleanUris = state.results.mapNotNull { it.cleanUri }
+                            if (cleanUris.isNotEmpty()) {
                                 Toast.makeText(
                                     this@ShareActivity,
-                                    getString(R.string.share_error_generic),
+                                    getString(R.string.share_metadata_stripped),
                                     Toast.LENGTH_SHORT
                                 ).show()
+                                val intent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "image/*"
+                                    putExtra(Intent.EXTRA_STREAM, cleanUris.first())
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                val chooser = Intent.createChooser(
+                                    intent,
+                                    getString(R.string.share_clean_copy)
+                                ).apply {
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                try {
+                                    startActivity(chooser)
+                                } catch (_: android.content.ActivityNotFoundException) {
+                                    Toast.makeText(
+                                        this@ShareActivity,
+                                        getString(R.string.share_error_generic),
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                } catch (e: Exception) {
+                                    // Starting an activity from a background or
+                                    // finishing context throws on API 29+.
+                                    Log.w(TAG, "Failed to launch share chooser: ${e.javaClass.simpleName}")
+                                }
+                            } else {
+                                val failed = state.results.firstOrNull { !it.success }
+                                val message = resolveErrorMessage(failed?.error)
+                                Toast.makeText(this@ShareActivity, message, Toast.LENGTH_SHORT).show()
                             }
-                        } else {
-                            val failed = state.results.firstOrNull { !it.success }
-                            val message = resolveErrorMessage(failed?.error)
-                            Toast.makeText(this@ShareActivity, message, Toast.LENGTH_SHORT).show()
+                            if (!isFinishing) finish()
                         }
-                        finish()
+                        is ShareUiState.Error -> {
+                            if (silentResultHandled) {
+                                if (!isFinishing) finish()
+                                return@collect
+                            }
+                            silentResultHandled = true
+                            Toast.makeText(
+                                this@ShareActivity,
+                                state.message,
+                                Toast.LENGTH_SHORT
+                            ).show()
+                            if (!isFinishing) finish()
+                        }
+                        else -> { }
                     }
-                    is ShareUiState.Error -> {
-                        Toast.makeText(
-                            this@ShareActivity,
-                            state.message,
-                            Toast.LENGTH_SHORT
-                        ).show()
-                        finish()
-                    }
-                    else -> { }
                 }
             }
         }
-        viewModel.startProcessing()
+        // Avoid restarting processing if the ViewModel already finished (e.g.
+        // after a config change) or if the silent path was already handled
+        // before process death. This prevents wasted I/O and duplicate toasts.
+        if (!silentResultHandled && viewModel.uiState.value is ShareUiState.Idle) {
+            viewModel.startProcessing()
+        }
     }
 
     private fun resolveErrorMessage(error: String?): String {
         return when {
             error.isNullOrEmpty() -> getString(R.string.share_error_generic)
-            error.contains("EOF", ignoreCase = true) ->
+            error.contains("corrupted", ignoreCase = true) ->
                 getString(R.string.share_error_corrupted)
-            error.contains("Invalid JPEG", ignoreCase = true) ->
-                getString(R.string.share_error_unsupported)
-            error.contains("MediaStore", ignoreCase = true) ->
+            error.contains("storage", ignoreCase = true) ->
                 getString(R.string.share_error_storage)
             else -> getString(R.string.share_error_generic)
         }
@@ -188,27 +222,43 @@ class ShareActivity : androidx.fragment.app.FragmentActivity() {
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putBoolean("was_bg", wasBackgrounded)
+        outState.putBoolean("silent_handled", silentResultHandled)
+        outState.putLong("last_pause", lastPauseTime)
     }
 
     @Suppress("DEPRECATION")
     private fun extractUrisFromIntent(intent: Intent): List<Uri> {
         val uris = mutableListOf<Uri>()
 
-        intent.clipData?.let { clip ->
-            for (i in 0 until clip.itemCount) {
-                clip.getItemAt(i).uri?.let { uris.add(it) }
-            }
-        }
-
+        // Only accept URIs from the standard share actions. Processing clipData
+        // regardless of action allows nuisance vectors from unexpected intents.
         when (intent.action) {
             Intent.ACTION_SEND -> {
-                intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)?.let { uris.add(it) }
+                intent.clipData?.let { clip ->
+                    for (i in 0 until clip.itemCount) {
+                        clip.getItemAt(i).uri?.let { uris.add(it) }
+                    }
+                }
+                // Use the class-aware overload on API 33+ to avoid type-erasure
+                // surprises; fall back to a safe cast on older versions.
+                val streamUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    intent.getParcelableExtra(Intent.EXTRA_STREAM) as? Uri
+                }
+                streamUri?.let { uris.add(it) }
             }
             Intent.ACTION_SEND_MULTIPLE -> {
+                intent.clipData?.let { clip ->
+                    for (i in 0 until clip.itemCount) {
+                        clip.getItemAt(i).uri?.let { uris.add(it) }
+                    }
+                }
                 intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)?.let { uris.addAll(it) }
             }
         }
-        return uris.distinct().filter { uri ->
+        return uris.filterIsInstance<Uri>().distinct().filter { uri ->
             if (uri.scheme != "content") return@filter false
             val mime = try {
                 contentResolver.getType(uri)
@@ -217,5 +267,9 @@ class ShareActivity : androidx.fragment.app.FragmentActivity() {
             }
             mime?.startsWith("image/") == true
         }
+    }
+
+    companion object {
+        private const val TAG = "ShareActivity"
     }
 }
