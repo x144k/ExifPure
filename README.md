@@ -29,6 +29,7 @@ A local-only, zero-permission-excess photo organizer for Android. Browse your ga
 | **Strip Modes** | `All Metadata` removes everything. `GPS Only` removes only location data while preserving camera info. |
 | **Batch Export** | Select multiple photos and share clean copies in one action. |
 | **Share Intent Processing** | Share images from any app directly to EXIF Pure. Metadata is automatically stripped and a clean copy is saved. |
+| **Silent Share Mode** | Share a single image to EXIF Pure and have it processed instantly without opening the app UI. The system share chooser launches with the clean copy ready to send. |
 | **Favorites** | Star photos and filter your gallery to show only favorites. |
 | **Biometric Lock** | Require fingerprint or face unlock to open the app. Re-locks automatically when backgrounded. |
 | **Export History** | Review a log of every clean copy exported, with timestamp and strip mode. |
@@ -99,7 +100,6 @@ Some features in this roadmap were inspired by [Imagepipe](https://codeberg.org/
 
 ## Upcoming Features
 
-- **Silent share mode** - Share images to EXIF Pure and have them processed and forwarded instantly, without opening the app UI.
 - **Privacy Score** - See at a glance how much identifying metadata each photo contains.
 - **Camera Model Name Resolution** - View readable camera names instead of cryptic manufacturer model codes.
 - **Per-Photo Strip Mode Override** - Choose a different strip mode for a specific photo and remember it for next time.
