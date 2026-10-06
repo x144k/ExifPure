@@ -38,6 +38,7 @@ class MainActivity : FragmentActivity() {
     // Used to trigger the lock screen on resume without relying on ON_STOP,
     // which is unreliable on API < 28 and during split-screen transitions.
     private var wasBackgrounded = false
+    private var lastPauseTime = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -73,10 +74,16 @@ class MainActivity : FragmentActivity() {
                                     // Do not treat rotation or resize as backgrounding.
                                     if (activity?.isChangingConfigurations != true) {
                                         wasBackgrounded = true
+                                        lastPauseTime = System.currentTimeMillis()
                                     }
                                 }
                                 Lifecycle.Event.ON_RESUME -> {
-                                    if (wasBackgrounded && container.prefs.appLockEnabled) {
+                                    // Only lock if the app was genuinely backgrounded for
+                                    // more than a brief moment. System dialogs (e.g. MediaStore
+                                    // deletion consent) cause ON_PAUSE/ON_RESUME cycles that
+                                    // should not trigger re-authentication.
+                                    val goneFor = System.currentTimeMillis() - lastPauseTime
+                                    if (wasBackgrounded && container.prefs.appLockEnabled && goneFor > 2000) {
                                         isLocked = true
                                     }
                                     // Always reset so a later resume without backgrounding
