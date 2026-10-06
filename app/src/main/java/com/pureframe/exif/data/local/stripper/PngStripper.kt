@@ -13,7 +13,7 @@ import java.io.OutputStream
  */
 object PngStripper {
 
-    private const val MAX_CHUNK_LENGTH = 100 * 1024 * 1024 // 100 MB
+    private const val MAX_CHUNK_LENGTH = StripperConstants.MAX_CHUNK_LENGTH
 
     private val CHUNK_EXIF = chunkType("eXIf")
     private val CHUNK_TEXT = chunkType("tEXt")
