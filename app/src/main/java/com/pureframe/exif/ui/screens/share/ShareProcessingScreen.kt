@@ -181,13 +181,26 @@ private fun SuccessContent(
             )
             Spacer(modifier = Modifier.width(12.dp))
             Column {
+                val firstError = results.firstOrNull { !it.success }?.error
+                val reason = when {
+                    firstError?.contains("EOF") == true -> "File appears corrupted or incomplete"
+                    firstError?.contains("Invalid JPEG") == true -> "Unsupported or damaged image format"
+                    firstError?.contains("MediaStore") == true -> "Unable to save to device storage"
+                    else -> "File may be corrupted or unsupported"
+                }
+                val title = when {
+                    successCount == 1 && failedCount == 0 -> "Clean copy saved"
+                    successCount == 0 && failedCount == 1 -> "Export failed"
+                    successCount > 0 && failedCount == 0 -> "$successCount clean copies saved"
+                    else -> "$successCount saved, $failedCount failed"
+                }
                 Text(
-                    text = if (results.size == 1) "Clean copy saved" else "$successCount clean copies saved",
+                    text = title,
                     style = MaterialTheme.typography.titleMedium
                 )
                 if (failedCount > 0) {
                     Text(
-                        text = "$failedCount failed",
+                        text = reason,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error
                     )
