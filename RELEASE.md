@@ -1,32 +1,28 @@
-# EXIF Pure v1.4.1
+# EXIF Pure v1.4.2
 
 ## What's New
 
-### Secure Photo Deletion
-Deleting photos now works correctly on Android 10 and later. The app uses the modern MediaStore deletion API, which shows a system confirmation dialog so you stay in control. Previously, deletion silently failed with a "Deleted 0 photos" toast on devices running scoped storage.
+### Hardened Export & Share Handling
+The export and share pipeline has been hardened against edge cases that could cause crashes or leaks:
+- Sharing photos to EXIF Pure from other apps no longer crashes on malformed share intents
+- Exported filenames are properly sanitized to prevent path traversal
+- Shared image URIs are handled more safely, preventing potential metadata leakage
+- The export screen now remembers your chosen strip mode after rotating the device
 
-### Smarter Lock Screen
-The biometric lock no longer re-prompts you after system dialogs (like the deletion confirmation). A short grace period distinguishes genuine backgrounding from transient overlays, so you only authenticate when it actually matters.
+### Stronger Metadata Stripping
+The lossless JPEG and PNG strippers now reject malformed images instead of producing corrupt output:
+- Better handling of truncated or corrupted image segments
+- Improved EOF detection during strip operations
+- GPS-only strip mode is now covered by dedicated unit tests for both JPEG and PNG
 
-### Lock Hardening
-The biometric prompt has been hardened across the board:
-- Switches to BIOMETRIC_STRONG for stronger authentication
-- Adds dedicated handling for lockout, unenrolled biometrics, and missing hardware
-- Prevents saved-state crashes when the activity is finishing
-- Cancels stale prompts on timeout or screen disposal
-- Fixes lock bypass on API < 28 and during split-screen use
-
-## Improvements
-
-- **Security:** Background detection moved to ON_PAUSE with state save/restore for reliability
-- **UX:** Lock screen text now uses theme colors for proper contrast on light dynamic themes
-- **UX:** All lock screen strings are now localizable
-- **Dependencies:** AndroidX, Compose, Coil, and ExifInterface updated to current stable versions
+### Misc
+- Random filenames for exported images now use more entropy, making collisions extremely unlikely
+- Documentation and code comments cleaned up across the stripper modules
 
 ## SHA-256 Checksums
 
 ```
-bffe65271820ab27c2b6d7a530abddd6d6551f4bf7012f728735734d565ab8f5  app-release.apk
+2fb64b93daf26dc1b64e0e45191a993ffc7f054066025b1257904c7f2d55d628  app-release.apk
 ```
 
 ## Installation
