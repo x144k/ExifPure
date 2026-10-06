@@ -6,6 +6,9 @@ import com.pureframe.exif.data.local.ExifDataSource
 import com.pureframe.exif.data.local.MediaStoreDataSource
 import com.pureframe.exif.data.local.MetadataStripper
 import com.pureframe.exif.data.repository.PhotoRepository
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 class AppContainer(context: Context) {
     private val appContext = context.applicationContext
@@ -16,5 +19,13 @@ class AppContainer(context: Context) {
 
     val repository by lazy {
         PhotoRepository(mediaStore, exif, stripper, prefs)
+    }
+
+    private val _themeModeFlow = MutableStateFlow(prefs.themeMode)
+    val themeModeFlow: StateFlow<String> = _themeModeFlow.asStateFlow()
+
+    fun setThemeMode(mode: String) {
+        prefs.themeMode = mode
+        _themeModeFlow.value = mode
     }
 }

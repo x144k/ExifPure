@@ -4,8 +4,10 @@ import android.os.Bundle
 import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -25,6 +27,7 @@ import com.pureframe.exif.ui.screens.lock.AppLockScreen
 import com.pureframe.exif.ui.screens.settings.SettingsScreen
 import com.pureframe.exif.ui.screens.splash.SplashFlareScreen
 import com.pureframe.exif.ui.screens.viewer.ImageViewerScreen
+import com.pureframe.exif.data.local.EncryptedPreferenceStorage
 import com.pureframe.exif.ui.theme.ExifPureTheme
 
 class MainActivity : FragmentActivity() {
@@ -37,7 +40,13 @@ class MainActivity : FragmentActivity() {
 
         setContent {
             CompositionLocalProvider(LocalAppContainer provides container) {
-                ExifPureTheme {
+                val themeMode by container.themeModeFlow.collectAsState()
+                val darkTheme = when (themeMode) {
+                    EncryptedPreferenceStorage.VALUE_DARK -> true
+                    EncryptedPreferenceStorage.VALUE_LIGHT -> false
+                    else -> isSystemInDarkTheme()
+                }
+                ExifPureTheme(darkTheme = darkTheme) {
                     var showFlare by remember { mutableStateOf(true) }
                     var isLocked by remember { mutableStateOf(container.prefs.appLockEnabled) }
                     val navController = rememberNavController()
