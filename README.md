@@ -28,7 +28,7 @@ A local-only, zero-permission-excess photo organizer for Android. Browse your ga
 | **Lossless Metadata Stripper** | JPEG and PNG are rewritten segment-by-segment with zero re-compression. WEBP/HEIF fall back to high-quality re-encode. |
 | **Strip Modes** | `All Metadata` removes everything. `GPS Only` removes only location data while preserving camera info. |
 | **Batch Export** | Select multiple photos and share clean copies in one action. |
-| **Share Intent Processing** | Share images from any app directly to EXIF Pure. Metadata is automatically stripped and a clean copy is saved without opening the main app. |
+| **Share Intent Processing** | Share images from any app directly to EXIF Pure. Metadata is automatically stripped and a clean copy is saved. |
 | **Favorites** | Star photos and filter your gallery to show only favorites. |
 | **Biometric Lock** | Require fingerprint or face unlock to open the app. Re-locks automatically when backgrounded. |
 | **Export History** | Review a log of every clean copy exported, with timestamp and strip mode. |
@@ -100,12 +100,22 @@ Some features in this roadmap were inspired by [Imagepipe](https://codeberg.org/
 ## Upcoming Features
 
 - **Silent share mode** - Share images to EXIF Pure and have them processed and forwarded instantly, without opening the app UI.
+- **Privacy Score** - See at a glance how much identifying metadata each photo contains.
+- **Camera Model Name Resolution** - View readable camera names instead of cryptic manufacturer model codes.
+- **Per-Photo Strip Mode Override** - Choose a different strip mode for a specific photo and remember it for next time.
+- **EXIF Field Tooltips** - Tap any metadata entry to learn what it means and why it matters for your privacy.
+- **Batch Metadata Summary** - Select multiple photos and see instant stats about their metadata.
+- **Original Integrity Hash** - Verify that your original photo files have never been modified.
+- **Before/After Metadata Preview** - Review exactly what metadata will remain before you export or share.
+- **Export Filename Templates** - Customize filenames using date, camera name, counters, or random strings.
+- **Metadata Presets** - Save named configurations like Social Post or Archive for quick one-tap selection.
+- **Search by EXIF Field** - Find photos by camera model, GPS presence, date range, and more.
 - **Resize on export** - Set a maximum image size so large photos are scaled down before saving or sharing.
 - **Convert format on export** - Save clean copies as JPEG, PNG, or WebP instead of keeping the original file format.
 - **In-app EXIF editor** - Edit specific metadata fields, such as adding copyright or correcting the date taken, instead of only removing data.
 - **Choose what metadata to keep** - Preserve selected information, like copyright or camera model, while stripping everything else.
-- **Duplicate detection** - Find visually similar or exact-duplicate photos to help clean up storage.
 - **Fix sideways photos on export** - Ensure photos display correctly in every app by baking rotation into the image itself during conversion or resize.
+- **Duplicate detection** - Find visually similar or exact-duplicate photos to help clean up storage.
 - **HEIC/HEIF lossless stripping** - Strip metadata from HEIC/HEIF images without quality loss. Experimental.
 
 ---
