@@ -17,7 +17,7 @@
     <string name="lock_cancel">Cancel</string>
     <string name="lock_required">Authentication required</string>
     <string name="lock_biometric_icon">Biometric</string>
-    <string name="lock_no_hardware">No biometric hardware enrolled</string>
+    <string name="lock_no_hardware">Biometric authentication is unavailable</string>
     <string name="lock_cancelled">Authentication cancelled</string>
     <string name="lock_retry">Retry</string>
     <string name="lock_too_many_attempts">Too many failed attempts. Please restart the app.</string>
@@ -26,6 +26,9 @@
     <string name="lock_auth_failed">Authentication failed. Setting not changed.</string>
     <string name="lock_no_strong_biometric">Strong biometric authentication is not available on this device.</string>
     <string name="lock_disable">Disable Lock</string>
+    <string name="lock_none_enrolled">No biometrics enrolled. Set up fingerprint or face unlock in device settings.</string>
+    <string name="lock_unavailable">Biometric sensor is temporarily unavailable</string>
+    <string name="lock_authenticating">Authenticating</string>
 
     <!-- Settings -->
     <string name="settings_title">Settings</string>
