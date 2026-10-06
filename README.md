@@ -43,6 +43,7 @@ A local-only, zero-permission-excess photo organizer for Android. Browse your ga
 | `READ_MEDIA_IMAGES` (Android 13+) | Read photos from device storage |
 | `READ_MEDIA_VISUAL_USER_SELECTED` (Android 14+) | Partial photo access support |
 | `READ_EXTERNAL_STORAGE` (Android 12 and below) | Legacy storage read access |
+| `WRITE_EXTERNAL_STORAGE` (Android 9 and below) | Required for photo deletion on legacy storage |
 | Biometric hardware | Optional; used only if app lock is enabled in Settings |
 
 ---
