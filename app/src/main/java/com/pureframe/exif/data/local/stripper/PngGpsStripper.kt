@@ -16,10 +16,10 @@ import java.util.zip.CRC32
  */
 object PngGpsStripper {
 
-    /** EXIF chunk type code, packed as big-endian 32-bit integer. */
+    private const val MAX_CHUNK_LENGTH = 100 * 1024 * 1024 // 100 MB
+
     private val CHUNK_EXIF = chunkType("eXIf")
 
-    /** Packs a 4-character ASCII chunk name into a 32-bit big-endian integer. */
     private fun chunkType(name: String): Int =
         (name[0].code shl 24) or (name[1].code shl 16) or (name[2].code shl 8) or name[3].code
 
@@ -32,9 +32,12 @@ object PngGpsStripper {
         val reader = DataInputStream(input.buffered())
         val writer = DataOutputStream(output.buffered())
 
-        // Validate PNG signature
         val sig = ByteArray(8)
-        reader.readFully(sig)
+        try {
+            reader.readFully(sig)
+        } catch (e: java.io.EOFException) {
+            throw IllegalStateException("Unexpected EOF reading PNG signature")
+        }
         require(
             sig.contentEquals(
                 byteArrayOf(
@@ -44,15 +47,32 @@ object PngGpsStripper {
         ) { "Not a valid PNG file: signature mismatch" }
         writer.write(sig)
 
-        // Chunk-by-chunk processing
         while (true) {
-            val length = reader.readInt()
-            val type = reader.readInt()
-            val data = ByteArray(length)
-            reader.readFully(data)
-            val crc = reader.readInt()
+            val length = try {
+                reader.readInt().toLong() and 0xFFFFFFFFL
+            } catch (e: java.io.EOFException) {
+                throw IllegalStateException("Unexpected EOF reading PNG chunk length")
+            }
+            if (length > MAX_CHUNK_LENGTH) {
+                throw IllegalArgumentException("PNG chunk exceeds maximum allowed size")
+            }
+            val type = try {
+                reader.readInt()
+            } catch (e: java.io.EOFException) {
+                throw IllegalStateException("Unexpected EOF reading PNG chunk type")
+            }
+            val data = ByteArray(length.toInt())
+            try {
+                reader.readFully(data)
+            } catch (e: java.io.EOFException) {
+                throw IllegalStateException("Unexpected EOF reading PNG chunk data")
+            }
+            val crc = try {
+                reader.readInt()
+            } catch (e: java.io.EOFException) {
+                throw IllegalStateException("Unexpected EOF reading PNG chunk CRC")
+            }
 
-            // IEND is always last — copy and finish
             if (type == chunkType("IEND")) {
                 writeChunk(writer, type, data, crc)
                 writer.flush()
@@ -60,7 +80,6 @@ object PngGpsStripper {
             }
 
             if (type == CHUNK_EXIF) {
-                // Mutate the EXIF payload to remove GPS, then recalculate CRC
                 stripGpsFromExif(data)
                 val typeBytes = byteArrayOf(
                     (type shr 24).toByte(), (type shr 16).toByte(), (type shr 8).toByte(), type.toByte()
@@ -68,21 +87,14 @@ object PngGpsStripper {
                 val newCrc = CRC32().apply { update(typeBytes); update(data) }.value.toInt()
                 writeChunk(writer, type, data, newCrc)
             } else {
-                // All other chunks — copy verbatim (including original CRC)
                 writeChunk(writer, type, data, crc)
             }
         }
     }
 
-    /**
-     * Zeros the GPS IFD entry count inside a TIFF payload.
-     *
-     * @param data The raw TIFF/EXIF payload from the `eXIf` chunk (no PNG framing).
-     */
     private fun stripGpsFromExif(data: ByteArray) {
         if (data.size < 8) return
 
-        // Determine byte order
         val littleEndian = when {
             data[0] == 'I'.code.toByte() && data[1] == 'I'.code.toByte() -> true
             data[0] == 'M'.code.toByte() && data[1] == 'M'.code.toByte() -> false
@@ -111,30 +123,36 @@ object PngGpsStripper {
             }
         }
 
-        // Locate IFD0 and scan for GPS pointer
         val ifd0Offset = readInt32(4)
-        if (ifd0Offset < 0 || ifd0Offset >= data.size - 2) return
+        if (ifd0Offset < 0) return
+        if (ifd0Offset > data.size - 2) return
 
         val entryCount = readInt16(ifd0Offset)
         if (entryCount < 0 || entryCount > 1000) return
 
         for (i in 0 until entryCount) {
             val entryOffset = ifd0Offset + 2 + (i * 12)
-            if (entryOffset + 12 > data.size) break
+            if (entryOffset < 0 || entryOffset > data.size - 12) break
 
             val tag = readInt16(entryOffset)
             if (tag == 0x8825) {
+                val type = readInt16(entryOffset + 2)
+                val count = readInt32(entryOffset + 4)
+                if (type != 4 || count != 1) break
+
                 val gpsIfdOffset = readInt32(entryOffset + 8)
-                if (gpsIfdOffset >= 0 && gpsIfdOffset + 2 <= data.size) {
-                    data[gpsIfdOffset] = 0
-                    data[gpsIfdOffset + 1] = 0
-                }
+                if (gpsIfdOffset <= 0) break
+                if (gpsIfdOffset > data.size - 2) break
+                // Reject pointers that overlap IFD0 to avoid corrupting the whole EXIF block.
+                if (gpsIfdOffset <= ifd0Offset + 2) break
+
+                data[gpsIfdOffset] = 0
+                data[gpsIfdOffset + 1] = 0
                 break
             }
         }
     }
 
-    /** Writes a complete PNG chunk (length, type, data, CRC) in big-endian. */
     private fun writeChunk(writer: DataOutputStream, type: Int, data: ByteArray, crc: Int) {
         writer.writeInt(data.size)
         writer.writeInt(type)
